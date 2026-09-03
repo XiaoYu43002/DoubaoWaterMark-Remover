@@ -17,15 +17,30 @@
 
 ## 快速开始
 
+### 方式一：Chrome 扩展（完整功能：图片 + 视频）
+
 1. 打开本仓库，点击 **Code → Download ZIP**，或 `git clone` 后解压到固定目录  
 2. 打开 Chrome → `chrome://extensions/` → 开启 **开发者模式**  
-3. 点击 **「加载已解压的扩展程序」**，选择仓库里的 **`extension`** 文件夹  
+3. 点击 **「加载已解压的扩展程序」**，选择仓库里的 **`doubaoparser`** 文件夹  
 4. 确认名称为 `Doubao Original Media Helper`、版本 `2.3.2`  
 5. 打开 [豆包](https://www.doubao.com)，按 `Ctrl + Shift + R` 强制刷新  
 
 若曾安装其它占用 Debugger 的豆包视频类扩展，请先禁用。更细的回归与排错见 [docs/testing.md](./docs/testing.md)。
 
 （上架 Chrome 网上应用店后，将在此补充一键安装链接。）
+
+### 方式二：油猴脚本 / Greasy Fork（目前仅图片）
+
+视频无水印依赖 Chrome 的 `debugger` API，**油猴环境无法完整提供**，因此脚本版以无水印图片为主。完整图+视频请用上方 Chrome 扩展。
+
+**快速安装：**
+
+1. 先安装 [Tampermonkey](https://www.tampermonkey.net/)（或其它油猴管理器）  
+2. 打开脚本文件安装：  
+   [doubao-nomark-images.user.js](https://github.com/XiaoYu43002/DoubaoWaterMark-Remover/raw/main/userscript/doubao-nomark-images.user.js)  
+3. 在 Tampermonkey 中确认启用，打开豆包对话页并刷新  
+
+发布到 [Greasy Fork](https://greasyfork.org/) 后，可将上面的链接替换为 Greasy Fork 一键安装页。
 
 ---
 
@@ -130,7 +145,9 @@ DoubaoWaterMark-Remover/
 ├── CHANGELOG.md
 ├── LICENSE
 ├── docs/testing.md
-└── extension/          # 加载已解压扩展时选择此目录
+├── doubaoparser/       # Chrome「加载已解压的扩展程序」选此目录
+└── userscript/
+    └── doubao-nomark-images.user.js   # 油猴 / Greasy Fork（图片）
 ```
 
 ---

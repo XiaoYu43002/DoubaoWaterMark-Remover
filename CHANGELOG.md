@@ -6,6 +6,15 @@
 
 ### Changed
 
+- 扩展目录由 `extension/` 重命名为 `doubaoparser/`
+- README 调整章节顺序，补充油猴安装说明
+
+### Added
+
+- `userscript/doubao-nomark-images.user.js`：Greasy Fork / Tampermonkey 图片无水印捕获与下载（视频仍需 Chrome 扩展）
+
+### Notes
+
 - 网页只响应媒体相关 DOM 变化；Fiber 扫描延后并缩小遍历范围
 - Popup 分批渲染与缩略图懒加载
 - 网页面板居中显示「加载成功」，最大高度约 320px

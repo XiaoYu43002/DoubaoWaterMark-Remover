@@ -33,7 +33,7 @@
 1. 先在 `chrome://extensions/` 禁用独立的“豆包视频去水印”插件及之前的 Video Debugger 测试插件。Chrome 同一标签页通常只能被一个 Debugger 客户端占用。
 2. 克隆或解压本仓库到一个固定目录。
 3. 打开 `chrome://extensions/`，开启“开发者模式”。
-4. 如果已有本插件，点击“重新加载”；首次安装则点击“加载已解压的扩展程序”，选择仓库内的 **`extension`** 目录（内含 `manifest.json`）。
+4. 如果已有本插件，点击“重新加载”；首次安装则点击“加载已解压的扩展程序”，选择仓库内的 **`doubaoparser`** 目录（内含 `manifest.json`）。
 5. 确认扩展名称为 `Doubao Original Media Helper`、版本为 `2.3.2`。
 6. 关闭旧 Popup，回到豆包页面按 `Ctrl + Shift + R` 强制刷新。
 7. 页面顶部出现“正在调试此浏览器”的提示属于视频监听的预期现象，请不要点“取消”。
