@@ -21,6 +21,8 @@
   let readyToastTimer = null;
   let readyToastHideTimer = null;
 
+  const SUPPORT_URL = "https://github.com/XiaoYu43002/DoubaoWaterMark-Remover";
+
   const mediaPanel = createMediaPanel();
   setStatus("listening");
   bootstrapExtensionEnabled();
@@ -39,8 +41,8 @@
     toast.style.cssText = [
       "position:fixed",
       "left:50%",
-      "top:16%",
-      "transform:translateX(-50%)",
+      "top:50%",
+      "transform:translate(-50%,-50%)",
       "z-index:2147483647",
       "padding:10px 18px",
       "border-radius:999px",
@@ -90,7 +92,7 @@
         .info strong{display:block;font-size:11px}.info span{display:block;margin-top:4px;overflow:hidden;text-overflow:ellipsis;
           white-space:nowrap;color:#a1a1aa;font-size:9px}.download{height:29px;padding:0 9px;border:0;border-radius:8px;background:#2563eb;color:#fff;font-size:10px}
         footer{display:flex;flex:0 0 auto;align-items:center;justify-content:space-between;padding:9px 11px;border-top:1px solid #e4e4e7;background:#fff}
-        footer span{color:#71717a;font-size:10px}#download-all{height:31px;padding:0 12px;border:0;border-radius:9px;background:#2563eb;color:#fff;font-size:11px}
+        footer span{color:#71717a;font-size:10px}#support-author{height:31px;padding:0 12px;border:0;border-radius:9px;background:#2563eb;color:#fff;font-size:11px}
         #launcher{display:none;width:46px;height:46px;border:0;border-radius:50%;background:#0057ff;color:#fff;font-size:20px;box-shadow:0 8px 24px rgba(0,87,255,.3)}
         #panel.closed{display:none}#panel.closed+#launcher{display:block}
       </style>
@@ -98,7 +100,7 @@
         <header><button id="collapse" class="icon" title="收起面板" aria-label="收起或展开面板"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="title"><strong><span>加载成功</span><i class="state-dot"></i></strong></div><button id="close" class="icon" title="关闭">×</button></header>
         <nav id="tabs"><button class="tab active" data-type="image">图片 <b id="image-count">0</b></button><button class="tab" data-type="video">视频 <b id="video-count">0</b></button></nav>
         <div id="body"><div id="list"><div class="empty">当前会话暂未识别到图片</div></div></div>
-        <footer><span id="total">图片 0 张</span><button id="download-all" disabled>下载全部图片</button></footer>
+        <footer><span id="total">图片 0 张</span><button id="support-author" type="button" title="支持作者十一木">支持作者</button></footer>
       </section>
       <button id="launcher" title="打开无水印媒体面板">◈</button>
     `;
@@ -107,7 +109,7 @@
     const header = shadow.querySelector("header");
     const list = shadow.getElementById("list");
     const total = shadow.getElementById("total");
-    const downloadAll = shadow.getElementById("download-all");
+    const supportAuthor = shadow.getElementById("support-author");
     const objectUrls = new Set();
     let activeType = "image";
 
@@ -125,19 +127,8 @@
       render();
     }));
 
-    downloadAll.addEventListener("click", async () => {
-      const items = activeType === "image"
-        ? Array.from(visibleImageIds).map((imageId) => records.get(imageId)).filter(Boolean)
-        : Array.from(sessionVideos.values());
-      if (!items.length) return;
-      downloadAll.disabled = true;
-      downloadAll.textContent = "提交中…";
-      const response = await sendRuntimeMessage(activeType === "image"
-        ? { type: "BATCH_DOWNLOAD", images: items }
-        : { type: "BATCH_VIDEO_DOWNLOAD", videos: items });
-      downloadAll.disabled = false;
-      downloadAll.textContent = activeType === "image" ? "下载全部图片" : "下载全部视频";
-      setStatus(response?.ok === false ? "error" : "captured", response?.ok === false ? response.error : `已提交 ${items.length} 项下载`);
+    supportAuthor.addEventListener("click", () => {
+      window.open(SUPPORT_URL, "_blank", "noopener,noreferrer");
     });
 
     function appendItem(type, record) {
@@ -192,8 +183,6 @@
       shadow.querySelectorAll(".tab").forEach((button) => button.classList.toggle("active", button.dataset.type === activeType));
       const items = (activeType === "image" ? images : videos).sort((a, b) => (b.captured_at || 0) - (a.captured_at || 0));
       total.textContent = activeType === "image" ? `图片 ${items.length} 张` : `视频 ${items.length} 个`;
-      downloadAll.textContent = activeType === "image" ? "下载全部图片" : "下载全部视频";
-      downloadAll.disabled = items.length === 0;
       if (!items.length) {
         const empty = document.createElement("div");
         empty.className = "empty";
