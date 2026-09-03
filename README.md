@@ -1,7 +1,7 @@
 # 豆包无水印图片和视频一键下载
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![Version](https://img.shields.io/badge/version-2.4.5-blue.svg)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.4.6-blue.svg)](./CHANGELOG.md)
 [![GitHub stars](https://img.shields.io/github/stars/XiaoYu43002/DoubaoWaterMark-Remover)](https://github.com/XiaoYu43002/DoubaoWaterMark-Remover/stargazers)
 
 在豆包对话页一键获取无水印原图与高清无水印视频的工具/浏览器插件。支持一键下载
@@ -22,7 +22,7 @@
 1. 打开本仓库，点击 **Code → Download ZIP**，或 `git clone` 后解压到固定目录  
 2. 打开 Chrome → `chrome://extensions/` → 开启 **开发者模式**  
 3. 点击 **「加载已解压的扩展程序」**，选择仓库里的 **`doubaoparser`** 文件夹  
-4. 确认名称为 `豆包图片视频去水印`（DoubaoWaterMark-Remover）、版本 `2.4.5`  
+4. 确认名称为 `豆包图片视频去水印`（DoubaoWaterMark-Remover）、版本 `2.4.6`  
 5. 打开 [豆包](https://www.doubao.com)，按 `Ctrl + Shift + R` 强制刷新  
 
 若曾安装其它占用 Debugger 的豆包视频类扩展，请先禁用。更细的回归与排错见 [docs/testing.md](./docs/testing.md)。

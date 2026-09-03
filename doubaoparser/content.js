@@ -20,6 +20,7 @@
   let extensionEnabled = true;
   let readyToastTimer = null;
   let readyToastHideTimer = null;
+  let readyToastShown = false;
 
   const SUPPORT_URL = "https://github.com/XiaoYu43002/DoubaoWaterMark-Remover";
 
@@ -28,7 +29,8 @@
   bootstrapExtensionEnabled();
 
   function showReadyToast() {
-    if (!extensionEnabled || !document.documentElement) return;
+    if (!extensionEnabled || !document.documentElement || readyToastShown) return;
+    readyToastShown = true;
     clearTimeout(readyToastTimer);
     clearTimeout(readyToastHideTimer);
     const existing = document.getElementById("doubao-wm-ready-toast");
@@ -254,6 +256,7 @@
     if (!extensionEnabled) {
       const toast = document.getElementById("doubao-wm-ready-toast");
       if (toast) toast.remove();
+      readyToastShown = false;
       setStatus("listening");
       return;
     }

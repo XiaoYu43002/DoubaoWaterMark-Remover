@@ -569,8 +569,6 @@ window.addEventListener("unload", () => { for (const url of objectUrls) URL.revo
 
 async function initialize() {
   setMediaKind("all");
-  // 确保总开关为开启（已移除 Popup 开关 UI）。
-  await sendMessage({ type: "SET_EXTENSION_ENABLED", enabled: true });
   await loadCaptureMode();
   await loadCaptureStatus();
   await loadMedia({ keepFilter: false, preferCurrent: true });
