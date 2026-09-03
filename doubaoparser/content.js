@@ -614,6 +614,15 @@
 
   window.addEventListener("message", (event) => {
     if (event.source !== window || event.origin !== location.origin) return;
+    if (event.data?.type === "DOUBAO_CHAT_CHANGED") {
+      syncPageSession();
+      if (extensionEnabled && isConcreteChatPage()) {
+        sessionRescanUntil = Date.now() + 4000;
+        requestFiberScan(true, 60);
+        scheduleEnhance(30);
+      }
+      return;
+    }
     if (event.data?.type === "DOUBAO_ORIGINAL_IMAGES" && Array.isArray(event.data.images)) {
       handleCapturedImages(event.data.images);
     }

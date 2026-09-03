@@ -216,6 +216,9 @@
       records.clear();
       boundChatId = chatId;
       captureCount = 0;
+      window.postMessage({ type: "DOUBAO_CHAT_CHANGED", chat_id: chatId }, location.origin);
+      // 从首页进入新建会话时，URL 往往晚于首包出图；切到真实 chatId 后立刻补扫入库。
+      if (isConcreteChatPage()) queueReactFiberScan(true);
     }
     return chatId;
   }
@@ -409,9 +412,11 @@
           scannedReactValues.add(reactValue);
           scannedTargets += 1;
 
+          // 会话主区图片：替换水印的同时入库。新对话流式包常不含 chatId，仅靠 JSON.parse 会漏检。
+          const fiberScanOpts = { persist: true, requireChatScope: false, forcePost: true };
           let foundCount = 0;
           if (name.startsWith("__reactProps$")) {
-            foundCount = scanObject(reactValue, 240, { persist: false, requireChatScope: false });
+            foundCount = scanObject(reactValue, 320, fiberScanOpts);
           } else {
             let fiber = reactValue;
             const visitedFibers = new WeakSet();
@@ -419,10 +424,10 @@
               if (typeof fiber !== "object" || visitedFibers.has(fiber)) break;
               visitedFibers.add(fiber);
               if (fiber.memoizedProps) {
-                foundCount += scanObject(fiber.memoizedProps, 240, { persist: false, requireChatScope: false });
+                foundCount += scanObject(fiber.memoizedProps, 320, fiberScanOpts);
               }
               if (fiber.pendingProps && fiber.pendingProps !== fiber.memoizedProps) {
-                foundCount += scanObject(fiber.pendingProps, 160, { persist: false, requireChatScope: false });
+                foundCount += scanObject(fiber.pendingProps, 200, fiberScanOpts);
               }
               fiber = fiber.return;
             }
@@ -436,6 +441,7 @@
       }
     }
 
+    if (records.size) postImages(Array.from(records.values()));
     window.postMessage({
       type: MESSAGE_STATUS,
       status: records.size ? "captured" : "listening",
@@ -491,17 +497,20 @@
       syncInjectedChat();
       const chatId = boundChatId;
       // 不主动请求接口：只拦截页面自己解析的 JSON。
-      // 必须同时带有当前会话 ID，避免刷新时把其它接口里的图写进当前会话。
+      // 历史会话响应通常自带 chatId；新建会话流式出图包常不含 chatId，但仍在当前具体会话页。
       if (
         isConcreteChatPage() &&
         chatId &&
         typeof text === "string" &&
-        text.includes(chatId) &&
         text.includes("image_ori_raw") &&
         (text.includes("creations") || text.includes('"image_ori"'))
       ) {
         captureCount += 1;
-        scanObject(result, 9000, { persist: true, requireChatScope: true });
+        const hasChatMarker = text.includes(chatId);
+        scanObject(result, 9000, {
+          persist: true,
+          requireChatScope: hasChatMarker
+        });
       }
     } catch (error) {
       console.debug("[Doubao Original] 解析图片数据失败", error);
