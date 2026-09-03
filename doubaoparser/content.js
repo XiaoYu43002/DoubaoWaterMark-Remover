@@ -18,10 +18,52 @@
   let sessionRescanUntil = Date.now() + 2200;
   let sessionConversationId = getConversationMeta().conversation_id;
   let extensionEnabled = true;
+  let readyToastTimer = null;
+  let readyToastHideTimer = null;
 
   const mediaPanel = createMediaPanel();
   setStatus("listening");
   bootstrapExtensionEnabled();
+
+  function showReadyToast() {
+    if (!extensionEnabled || !document.documentElement) return;
+    clearTimeout(readyToastTimer);
+    clearTimeout(readyToastHideTimer);
+    const existing = document.getElementById("doubao-wm-ready-toast");
+    if (existing) existing.remove();
+
+    const toast = document.createElement("div");
+    toast.id = "doubao-wm-ready-toast";
+    toast.setAttribute("role", "status");
+    toast.textContent = "插件已就绪 · 数据仅在本地处理";
+    toast.style.cssText = [
+      "position:fixed",
+      "left:50%",
+      "top:16%",
+      "transform:translateX(-50%)",
+      "z-index:2147483647",
+      "padding:10px 18px",
+      "border-radius:999px",
+      "background:rgba(28,28,30,.78)",
+      "color:#fff",
+      "font:13px/1.4 system-ui,\"PingFang SC\",\"Microsoft YaHei\",sans-serif",
+      "letter-spacing:.02em",
+      "backdrop-filter:blur(10px)",
+      "-webkit-backdrop-filter:blur(10px)",
+      "box-shadow:0 8px 28px rgba(0,0,0,.22)",
+      "pointer-events:none",
+      "opacity:0",
+      "transition:opacity .28s ease"
+    ].join(";");
+    document.documentElement.appendChild(toast);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => { toast.style.opacity = "1"; });
+    });
+    readyToastTimer = setTimeout(() => {
+      toast.style.opacity = "0";
+      readyToastHideTimer = setTimeout(() => toast.remove(), 320);
+    }, 2800);
+  }
 
   function createMediaPanel() {
     const host = document.createElement("div");
@@ -187,12 +229,15 @@
     broadcastEnabledToPage();
     if (mediaPanel?.host) mediaPanel.host.style.display = extensionEnabled ? "" : "none";
     if (!extensionEnabled) {
+      const toast = document.getElementById("doubao-wm-ready-toast");
+      if (toast) toast.remove();
       setStatus("listening");
       return;
     }
     scheduleEnhance();
     requestFiberScan(false, 260);
     mediaPanel.refresh();
+    showReadyToast();
   }
 
   function bootstrapExtensionEnabled() {
