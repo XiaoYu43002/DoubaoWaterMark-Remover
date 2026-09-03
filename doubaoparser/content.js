@@ -17,9 +17,11 @@
   let lastFiberScanAt = 0;
   let sessionRescanUntil = Date.now() + 2200;
   let sessionConversationId = getConversationMeta().conversation_id;
+  let extensionEnabled = true;
 
   const mediaPanel = createMediaPanel();
   setStatus("listening");
+  bootstrapExtensionEnabled();
 
   function createMediaPanel() {
     const host = document.createElement("div");
@@ -176,6 +178,35 @@
       revoke: () => objectUrls.forEach((url) => URL.revokeObjectURL(url))
     };
   }
+
+  function broadcastEnabledToPage() {
+    window.postMessage({ type: "DOUBAO_SET_ENABLED", enabled: extensionEnabled }, location.origin);
+  }
+
+  function applyExtensionEnabled() {
+    broadcastEnabledToPage();
+    if (mediaPanel?.host) mediaPanel.host.style.display = extensionEnabled ? "" : "none";
+    if (!extensionEnabled) {
+      setStatus("listening");
+      return;
+    }
+    scheduleEnhance();
+    requestFiberScan(false, 260);
+    mediaPanel.refresh();
+  }
+
+  function bootstrapExtensionEnabled() {
+    chrome.storage.local.get({ extensionEnabled: true }, (stored) => {
+      extensionEnabled = stored.extensionEnabled !== false;
+      applyExtensionEnabled();
+    });
+  }
+
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== "local" || !changes.extensionEnabled) return;
+    extensionEnabled = changes.extensionEnabled.newValue !== false;
+    applyExtensionEnabled();
+  });
 
   function enablePanelDrag(host, handle) {
     const POSITION_KEY = "doubaoMediaPanelPosition_v3";
@@ -455,6 +486,7 @@
   }
 
   async function handleCapturedImages(values) {
+    if (!extensionEnabled) return;
     syncPageSession();
     // 首页 / 未进入具体会话时不入库，避免把推荐位、示例图扫进「未命名会话」。
     if (!isConcreteChatPage()) return;
@@ -540,6 +572,7 @@
   }
 
   function scheduleEnhance(delay = 35) {
+    if (!extensionEnabled) return;
     syncPageSession();
     if (enhanceScheduled) return;
     enhanceScheduled = true;
@@ -551,6 +584,7 @@
   }
 
   function requestFiberScan(force = false, delay = 120) {
+    if (!extensionEnabled) return;
     if (!isConcreteChatPage()) return;
     if (!force && (fiberScanTimer || Date.now() - lastFiberScanAt < 1800)) return;
     clearTimeout(fiberScanTimer);
@@ -562,7 +596,7 @@
   }
 
   function enhanceImages() {
-    if (!document.body) return;
+    if (!extensionEnabled || !document.body) return;
     const images = document.querySelectorAll('img[src*="byteimg.com"], img[srcset*="byteimg.com"]');
     const nextVisibleIds = new Set();
     let unmatched = 0;
@@ -688,6 +722,7 @@
   }
 
   document.addEventListener("click", async (event) => {
+    if (!extensionEnabled) return;
     const control = event.target.closest?.('button, a, [role="button"]');
     if (!control || !looksLikeDownloadControl(control)) return;
     const matched = findImageForControl(control);
@@ -701,17 +736,31 @@
   }, true);
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message?.type === "EXTENSION_ENABLED_CHANGED") {
+      extensionEnabled = message.enabled !== false;
+      applyExtensionEnabled();
+      sendResponse?.({ ok: true });
+      return false;
+    }
     if (message?.type === "DOUBAO_SESSION_VIDEO") {
+      if (!extensionEnabled) return false;
       syncPageSession();
       if (message.video?.conversation_id === sessionConversationId) mediaPanel.showVideo(message.video);
       return false;
     }
     if (message?.type === "GET_STATUS") {
-      sendResponse({ ok: true, status, total: records.size, hookActive: true, ...getConversationMeta() });
+      sendResponse({
+        ok: true,
+        status,
+        total: records.size,
+        hookActive: extensionEnabled,
+        enabled: extensionEnabled,
+        ...getConversationMeta()
+      });
       return false;
     }
     if (message?.type === "COLLECT_IMAGES") {
-      sendResponse({ ok: true, images: Array.from(records.values()) });
+      sendResponse({ ok: true, images: extensionEnabled ? Array.from(records.values()) : [] });
       return false;
     }
     return false;
@@ -726,10 +775,13 @@
         attributeFilter: ["src", "srcset"]
       });
     }
+    broadcastEnabledToPage();
     window.postMessage({ type: "DOUBAO_ORIGINAL_BRIDGE_READY" }, location.origin);
-    requestFiberScan(false, 260);
-    scheduleEnhance();
-    mediaPanel.refresh();
+    if (extensionEnabled) {
+      requestFiberScan(false, 260);
+      scheduleEnhance();
+      mediaPanel.refresh();
+    }
     scheduleConversationTitleSync();
     const titleEl = document.querySelector("title");
     if (titleEl) {

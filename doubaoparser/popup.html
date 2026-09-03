@@ -3,14 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>豆包无水印媒体</title>
+  <title>豆包图片视频去水印</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
+  <section class="master-switch" aria-label="总开关">
+    <div class="master-switch-copy">
+      <strong>启用去水印</strong>
+      <span id="enable-hint">当前已启用</span>
+    </div>
+    <label class="switch" title="开启或关闭插件功能">
+      <input id="extension-enabled" type="checkbox" checked>
+      <span class="slider" aria-hidden="true"></span>
+    </label>
+  </section>
+
   <header class="app-header">
     <span id="count" class="count-badge">共 0</span>
     <div class="header-center">
-      <h1>豆包无水印媒体</h1>
+      <h1>豆包图片视频去水印</h1>
       <div id="status-chip" class="status-chip" data-state="pending">
         <span id="video-status"><i></i><b>连接中</b></span>
         <button id="reconnect-video" type="button" title="重连监听">重连</button>

@@ -25,8 +25,10 @@
   const downloadWaiters = new Map();
   let activeDownloads = 0;
   let captureMode = CAPTURE_MODE_CURRENT;
+  let extensionEnabled = true;
 
   chrome.tabs.onActivated.addListener(async ({ tabId }) => {
+    if (!extensionEnabled) return;
     if (captureMode === CAPTURE_MODE_CURRENT) await syncTargetTabs();
     else {
       const tab = await safeGetTab(tabId);
@@ -35,17 +37,28 @@
   });
 
   chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+    if (!extensionEnabled) {
+      if (attachedTabs.has(tabId)) await detachTab(tabId);
+      return;
+    }
     const url = changeInfo.url || tab.url || "";
     if (isTargetPage(url) && (captureMode === CAPTURE_MODE_ALL || tab.active)) await ensureAttached(tabId);
     else if (attachedTabs.has(tabId)) await detachTab(tabId);
   });
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName !== "local" || !changes.captureMode) return;
-    captureMode = changes.captureMode.newValue === CAPTURE_MODE_CURRENT
-      ? CAPTURE_MODE_CURRENT
-      : CAPTURE_MODE_ALL;
-    syncTargetTabs().catch((error) => console.warn("[Doubao Original Video] 切换捕获范围失败", error));
+    if (areaName !== "local") return;
+    if (changes.captureMode) {
+      captureMode = changes.captureMode.newValue === CAPTURE_MODE_CURRENT
+        ? CAPTURE_MODE_CURRENT
+        : CAPTURE_MODE_ALL;
+    }
+    if (changes.extensionEnabled) {
+      extensionEnabled = changes.extensionEnabled.newValue !== false;
+    }
+    if (changes.captureMode || changes.extensionEnabled) {
+      syncTargetTabs().catch((error) => console.warn("[Doubao Original Video] 切换捕获状态失败", error));
+    }
   });
 
   chrome.tabs.onRemoved.addListener((tabId) => {
@@ -85,12 +98,15 @@
     if (message.type === "GET_VIDEO_STATUS") {
       (async () => {
         const tab = await activeTab();
-        if (tab?.id && isTargetPage(tab.url)) await ensureAttached(tab.id);
+        if (extensionEnabled && tab?.id && isTargetPage(tab.url)) await ensureAttached(tab.id);
         sendResponse({
           ok: true,
+          enabled: extensionEnabled,
           target_page: Boolean(tab && isTargetPage(tab.url)),
-          attached: Boolean(tab?.id && attachedTabs.has(tab.id)),
-          error: tab?.id ? tabErrors.get(tab.id) || "" : "",
+          attached: Boolean(extensionEnabled && tab?.id && attachedTabs.has(tab.id)),
+          error: !extensionEnabled
+            ? "扩展已关闭"
+            : (tab?.id ? tabErrors.get(tab.id) || "" : ""),
           capture_mode: captureMode,
           conversation: tab ? conversationMeta(tab) : null
         });
@@ -100,6 +116,7 @@
 
     if (message.type === "RECONNECT_VIDEO") {
       (async () => {
+        if (!extensionEnabled) throw new Error("请先在 Popup 中启用去水印");
         const tab = await activeTab();
         if (!tab?.id || !isTargetPage(tab.url)) throw new Error("请先打开豆包对话页面");
         tabErrors.delete(tab.id);
@@ -178,19 +195,28 @@
   });
 
   async function syncTargetTabs() {
-    const stored = await storageGet({ captureMode: CAPTURE_MODE_CURRENT });
+    const stored = await storageGet({
+      captureMode: CAPTURE_MODE_CURRENT,
+      extensionEnabled: true
+    });
     captureMode = stored.captureMode === CAPTURE_MODE_ALL ? CAPTURE_MODE_ALL : CAPTURE_MODE_CURRENT;
+    extensionEnabled = stored.extensionEnabled !== false;
     const tabs = await chrome.tabs.query({});
     const activeTabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
     const activeId = activeTabs[0]?.id || 0;
-    const desired = new Set(tabs
-      .filter((tab) => tab.id && isTargetPage(tab.url) && (captureMode === CAPTURE_MODE_ALL || tab.id === activeId))
-      .map((tab) => tab.id));
+    const desired = new Set(
+      extensionEnabled
+        ? tabs
+          .filter((tab) => tab.id && isTargetPage(tab.url) && (captureMode === CAPTURE_MODE_ALL || tab.id === activeId))
+          .map((tab) => tab.id)
+        : []
+    );
     await Promise.all(Array.from(attachedTabs).filter((tabId) => !desired.has(tabId)).map(detachTab));
     await Promise.all(Array.from(desired).map(ensureAttached));
   }
 
   async function ensureAttached(tabId) {
+    if (!extensionEnabled) return;
     if (attachedTabs.has(tabId) || attachingTabs.has(tabId)) return;
     if (captureMode === CAPTURE_MODE_CURRENT && !await isCurrentTab(tabId)) return;
     attachingTabs.add(tabId);

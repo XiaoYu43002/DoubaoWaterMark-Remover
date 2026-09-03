@@ -13,6 +13,7 @@
   let lastFiberScanAt = 0;
   let fiberIdleHandle = null;
   let pendingFiberForce = false;
+  let extensionEnabled = true;
 
   function safeUrl(value) {
     if (typeof value !== "string" || value.length > 8192) return null;
@@ -269,6 +270,7 @@
   }
 
   function postImages(images) {
+    if (!extensionEnabled) return;
     syncInjectedChat();
     if (!images.length || !isConcreteChatPage()) return;
     const chatId = boundChatId;
@@ -284,6 +286,7 @@
   }
 
   function scanObject(root, maxInspected = 9000, options = {}) {
+    if (!extensionEnabled) return 0;
     if (!root || typeof root !== "object") return 0;
     syncInjectedChat();
     const chatId = boundChatId;
@@ -484,6 +487,7 @@
   JSON.parse = function doubaoOriginalImageParse(text, reviver) {
     const result = originalParse.call(this, text, reviver);
     try {
+      if (!extensionEnabled) return result;
       syncInjectedChat();
       const chatId = boundChatId;
       // 不主动请求接口：只拦截页面自己解析的 JSON。
@@ -507,9 +511,13 @@
 
   window.addEventListener("message", (event) => {
     if (event.source !== window || event.origin !== location.origin) return;
+    if (event.data?.type === "DOUBAO_SET_ENABLED") {
+      extensionEnabled = event.data.enabled !== false;
+      return;
+    }
     if (event.data?.type === MESSAGE_READY) {
       syncInjectedChat();
-      postImages(Array.from(records.values()));
+      if (extensionEnabled) postImages(Array.from(records.values()));
       window.postMessage({
         type: MESSAGE_STATUS,
         status: records.size ? "captured" : "listening",
@@ -518,6 +526,7 @@
       }, location.origin);
     }
     if (event.data?.type === "DOUBAO_ORIGINAL_FIBER_SCAN") {
+      if (!extensionEnabled) return;
       queueReactFiberScan(Boolean(event.data.force));
     }
   });

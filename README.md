@@ -1,7 +1,7 @@
 # 豆包无水印图片和视频一键下载
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![Version](https://img.shields.io/badge/version-2.3.2-blue.svg)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)](./CHANGELOG.md)
 [![GitHub stars](https://img.shields.io/github/stars/XiaoYu43002/DoubaoWaterMark-Remover)](https://github.com/XiaoYu43002/DoubaoWaterMark-Remover/stargazers)
 
 在豆包对话页一键获取无水印原图与高清无水印视频的工具/浏览器插件。支持一键下载
@@ -22,8 +22,9 @@
 1. 打开本仓库，点击 **Code → Download ZIP**，或 `git clone` 后解压到固定目录  
 2. 打开 Chrome → `chrome://extensions/` → 开启 **开发者模式**  
 3. 点击 **「加载已解压的扩展程序」**，选择仓库里的 **`doubaoparser`** 文件夹  
-4. 确认名称为 `Doubao Original Media Helper`、版本 `2.3.2`  
-5. 打开 [豆包](https://www.doubao.com)，按 `Ctrl + Shift + R` 强制刷新  
+4. 确认名称为 `豆包图片视频去水印`（DoubaoWaterMark-Remover）、版本 `2.4.0`  
+5. 打开 Popup，确认顶部「启用去水印」为开启  
+6. 打开 [豆包](https://www.doubao.com)，按 `Ctrl + Shift + R` 强制刷新  
 
 若曾安装其它占用 Debugger 的豆包视频类扩展，请先禁用。更细的回归与排错见 [docs/testing.md](./docs/testing.md)。
 
@@ -46,16 +47,20 @@
 
 ## 功能特性
 
+### 🎛️ 总开关
+
+- Popup 顶部 **「启用去水印」**：开启后拦截/下载无水印图与视频；关闭后停止 Hook、断开视频 Debugger，页内面板隐藏，豆包页面保持原样（已打开页面建议刷新）
+
 ### 🖼️ 无水印图片
 
-- ⚡ **对话页无水印原图**：Chrome 扩展形态下，面向豆包对话页优先拉取无水印原始图片地址（与油猴「叠图去水印」等方案路径不同）
-- 🖱️ **会话内图片 + 右侧大图**：浏览与预览链路尽量走无水印原图
+- ⚡ **对话页无水印原图**：豆包对话页面新生成的图片直接展示的是无水印图片可直接利用豆包原始下载按钮
+- 🖱️ **会话内图片 + 右侧大图**：浏览与预览链路均展示无水印图片
 - 💾 **豆包原生下载增强**：页面原生下载尽量走无水印原图链路
 - 📦 本机仅缓存缩略图与元数据，不保存原始大文件
 
 ### 🎬 无水印高清视频
 
-- 🚀 **高清原始无水印视频**：通过 Debugger 监听相关链路，解析无水印 / 高画质地址并下载（Chrome 扩展内图+视频一体方案）
+- 🚀 **高清原始无水印视频**：通过对豆包接口进行解密获取原始水印视频下载地址
 - 🔄 预览前自动刷新临时地址；下载失败自动重试，并尽量选择最高画质
 - ⚠️ 页顶出现「正在调试此浏览器」为视频监听的**预期现象**，请勿点「取消」
 

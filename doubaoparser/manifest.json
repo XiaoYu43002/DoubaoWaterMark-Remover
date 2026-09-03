@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Doubao Original Media Helper",
-  "description": "在豆包对话页面显示、管理并下载已生成图片和视频的无水印原始版本。",
-  "version": "2.3.2",
+  "name": "豆包图片视频去水印",
+  "short_name": "DoubaoWaterMark-Remover",
+  "description": "在豆包对话页一键获取无水印原图与高清无水印视频，支持启用/关闭与本地媒体管理。",
+  "version": "2.4.0",
   "minimum_chrome_version": "111",
   "permissions": [
     "debugger",
@@ -23,7 +24,7 @@
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "豆包无水印媒体"
+    "default_title": "豆包图片视频去水印"
   },
   "content_scripts": [
     {

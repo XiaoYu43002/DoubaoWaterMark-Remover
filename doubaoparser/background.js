@@ -26,7 +26,24 @@ async function getCaptureMode() {
   return stored.captureMode === CAPTURE_MODE_ALL ? CAPTURE_MODE_ALL : CAPTURE_MODE_CURRENT;
 }
 
+async function getExtensionEnabled() {
+  const stored = await storageGet({ extensionEnabled: true });
+  return stored.extensionEnabled !== false;
+}
+
+async function broadcastExtensionEnabled(enabled) {
+  const tabs = await chrome.tabs.query({ url: ["https://*.doubao.com/*", "http://*.doubao.com/*"] });
+  await Promise.all(tabs.map((tab) => new Promise((resolve) => {
+    if (!tab.id) return resolve();
+    chrome.tabs.sendMessage(tab.id, { type: "EXTENSION_ENABLED_CHANGED", enabled }, () => {
+      void chrome.runtime.lastError;
+      resolve();
+    });
+  })));
+}
+
 async function shouldPersistFromSender(sender) {
+  if (!await getExtensionEnabled()) return false;
   if (await getCaptureMode() === CAPTURE_MODE_ALL) return true;
   if (!sender?.tab?.id) return false;
   const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
@@ -514,6 +531,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     getCaptureMode()
       .then((captureMode) => sendResponse({ ok: true, captureMode }))
       .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "GET_EXTENSION_ENABLED") {
+    getExtensionEnabled()
+      .then((enabled) => sendResponse({ ok: true, enabled }))
+      .catch((error) => sendResponse({ ok: false, error: error.message, enabled: true }));
+    return true;
+  }
+
+  if (message.type === "SET_EXTENSION_ENABLED") {
+    (async () => {
+      const enabled = message.enabled !== false;
+      await storageSet({ extensionEnabled: enabled });
+      await broadcastExtensionEnabled(enabled);
+      sendResponse({ ok: true, enabled });
+    })().catch((error) => sendResponse({ ok: false, error: error.message }));
     return true;
   }
 

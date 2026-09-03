@@ -2,6 +2,16 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.4.0] - 2026-09-03
+
+### Added
+
+- Popup 总开关「启用去水印」：关闭后停止图片 Hook、隐藏页内面板、断开视频 Debugger
+
+### Changed
+
+- 扩展显示名称改为「豆包图片视频去水印」，`short_name` 为 DoubaoWaterMark-Remover
+
 ## [2.3.2] - 2026-09-03
 
 ### Changed

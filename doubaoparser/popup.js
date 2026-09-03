@@ -6,7 +6,7 @@ const WECHAT_ID = "请填写微信号";
 const elements = Object.fromEntries([
   "gallery", "count", "conversation-filter",
   "clear-all", "video-status", "reconnect-video", "status-chip",
-  "contact-btn", "media-tabs",
+  "contact-btn", "media-tabs", "extension-enabled", "enable-hint",
   "toolbar", "select-all", "selected-count", "batch-download", "notice", "loading",
   "empty", "error"
 ].map((id) => [id.replace(/-([a-z])/g, (_, c) => c.toUpperCase()), document.getElementById(id)]));
@@ -20,6 +20,7 @@ let activeConversationTitle = null;
 let noticeTimer = null;
 let reloadTimer = null;
 let renderVersion = 0;
+let extensionEnabled = true;
 
 function sendMessage(message) {
   return new Promise((resolve) => chrome.runtime.sendMessage(message, (response) => {
@@ -130,6 +131,12 @@ async function loadCaptureStatus() {
 function renderConnectionStatus({ onTarget, attached, error }) {
   const label = elements.videoStatus.querySelector("b");
   elements.videoStatus.classList.remove("connected", "error");
+  if (!extensionEnabled) {
+    elements.statusChip.dataset.state = "error";
+    elements.videoStatus.classList.add("error");
+    if (label) label.textContent = "已关闭";
+    return;
+  }
   if (!onTarget) {
     elements.statusChip.dataset.state = "error";
     elements.videoStatus.classList.add("error");
@@ -150,6 +157,31 @@ function renderConnectionStatus({ onTarget, attached, error }) {
 async function loadCaptureMode() {
   // 捕获范围固定为当前会话，界面不再展示切换。
   await sendMessage({ type: "SET_CAPTURE_MODE", captureMode: "current_only" });
+}
+
+function renderExtensionEnabled() {
+  elements.extensionEnabled.checked = extensionEnabled;
+  elements.enableHint.textContent = extensionEnabled ? "当前已启用" : "当前已关闭（页面将保持豆包原样）";
+  document.body.classList.toggle("extension-off", !extensionEnabled);
+  elements.reconnectVideo.disabled = !extensionEnabled;
+}
+
+async function loadExtensionEnabled() {
+  const response = await sendMessage({ type: "GET_EXTENSION_ENABLED" });
+  extensionEnabled = response?.enabled !== false;
+  renderExtensionEnabled();
+}
+
+async function setExtensionEnabled(enabled) {
+  const response = await sendMessage({ type: "SET_EXTENSION_ENABLED", enabled: Boolean(enabled) });
+  extensionEnabled = response?.enabled !== false;
+  renderExtensionEnabled();
+  await loadCaptureStatus();
+  showNotice(
+    extensionEnabled
+      ? "已启用去水印。若页面已有图片，建议刷新豆包页。"
+      : "已关闭去水印。已打开页面建议刷新以恢复豆包默认行为。"
+  );
 }
 
 async function loadMedia(options = {}) {
@@ -539,7 +571,20 @@ elements.batchDownload.addEventListener("click", async () => {
 
 elements.clearAll.addEventListener("click", () => { clearAllMediaCache(); });
 
+elements.extensionEnabled.addEventListener("change", async () => {
+  elements.extensionEnabled.disabled = true;
+  try {
+    await setExtensionEnabled(elements.extensionEnabled.checked);
+  } finally {
+    elements.extensionEnabled.disabled = false;
+  }
+});
+
 elements.reconnectVideo.addEventListener("click", async () => {
+  if (!extensionEnabled) {
+    showNotice("请先启用去水印", true);
+    return;
+  }
   setBusyText(elements.reconnectVideo, "…");
   const response = await sendMessage({ type: "RECONNECT_VIDEO" });
   resetButton(elements.reconnectVideo, "重连");
@@ -569,6 +614,7 @@ window.addEventListener("unload", () => { for (const url of objectUrls) URL.revo
 
 async function initialize() {
   setMediaKind("all");
+  await loadExtensionEnabled();
   await loadCaptureMode();
   await loadCaptureStatus();
   await loadMedia({ keepFilter: false, preferCurrent: true });
