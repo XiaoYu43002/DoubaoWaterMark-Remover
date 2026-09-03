@@ -1,18 +1,31 @@
-# 豆包无水印图片/视频下载（Chrome 扩展）
+# 豆包无水印图片和视频一键下载
 
 十一木出品 · 在豆包对话页一键获取无水印原图与高清无水印视频。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![Chrome MV3](https://img.shields.io/badge/Chrome-MV3-green.svg)](./extension/manifest.json)
 [![Version](https://img.shields.io/badge/version-2.3.2-blue.svg)](./CHANGELOG.md)
 [![GitHub stars](https://img.shields.io/github/stars/XiaoYu43002/DoubaoWaterMark-Remover)](https://github.com/XiaoYu43002/DoubaoWaterMark-Remover/stargazers)
 
-一个为豆包网站打造的 **Chrome Manifest V3 扩展**：在同一套扩展里同时支持对话页无水印图片与高清无水印视频的捕获、管理与下载。
+一个专门用于豆包网站的同时一键支持对话链接中无水印图片与高清无水印视频的去水印工具/浏览器插件。支持一键下载
+
+## 时效
 
 > **时效：2026.9.3 测试有效**  
 > 后期随时可能因豆包改版失效。若非原理被破坏，可提 Issue / PR，我们会跟进适配。
 
-_**安装扩展 👉 [从 GitHub 加载 extension 目录](#安装方法) |（上架后补充 Chrome 商店链接）**_
+---
+
+## 快速开始
+
+1. 打开本仓库，点击 **Code → Download ZIP**，或 `git clone` 后解压到固定目录  
+2. 打开 Chrome → `chrome://extensions/` → 开启 **开发者模式**  
+3. 点击 **「加载已解压的扩展程序」**，选择仓库里的 **`extension`** 文件夹  
+4. 确认名称为 `Doubao Original Media Helper`、版本 `2.3.2`  
+5. 打开 [豆包](https://www.doubao.com)，按 `Ctrl + Shift + R` 强制刷新  
+
+若曾安装其它占用 Debugger 的豆包视频类扩展，请先禁用。更细的回归与排错见 [docs/testing.md](./docs/testing.md)。
+
+（上架 Chrome 网上应用店后，将在此补充一键安装链接。）
 
 ---
 
@@ -47,6 +60,23 @@ _**安装扩展 👉 [从 GitHub 加载 extension 目录](#安装方法) |（上
 
 ---
 
+## 界面演示
+
+> 可将截图放入 `docs/images/` 后取消下面注释或替换路径。
+
+```text
+页内媒体面板 · Popup 历史库 · 图片/视频下载效果
+（截图待补充：docs/images/panel.png、popup.png、download-demo.png）
+```
+
+<!-- 有截图后改为：
+![页内面板](docs/images/panel.png)
+![Popup](docs/images/popup.png)
+![下载效果](docs/images/download-demo.png)
+-->
+
+---
+
 ## 特别说明
 
 ### 会话范围
@@ -67,18 +97,6 @@ _**安装扩展 👉 [从 GitHub 加载 extension 目录](#安装方法) |（上
 
 - [Qalxry/doubao-no-watermark](https://github.com/Qalxry/doubao-no-watermark)（油猴 · 图片等）
 - [ihmily/doubao-nomark](https://github.com/ihmily/doubao-nomark)（API / Edge / 油猴）
-
----
-
-## 安装方法
-
-1. 打开本仓库，点击 **Code → Download ZIP**，或 `git clone` 后解压到固定目录  
-2. 打开 Chrome → `chrome://extensions/` → 开启 **开发者模式**  
-3. 点击 **「加载已解压的扩展程序」**，选择仓库里的 **`extension`** 文件夹  
-4. 确认名称为 `Doubao Original Media Helper`、版本 `2.3.2`  
-5. 打开 [豆包](https://www.doubao.com)，按 `Ctrl + Shift + R` 强制刷新  
-
-若曾安装其它占用 Debugger 的豆包视频类扩展，请先禁用。更细的回归与排错见 [docs/testing.md](./docs/testing.md)。
 
 ---
 
