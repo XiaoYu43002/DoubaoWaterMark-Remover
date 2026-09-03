@@ -86,35 +86,35 @@
 
 打开旧会话时，对话里仍可能看到「豆包AI生成」等水印；右侧页内面板会解析出对应资源，并标注为**无水印**，可单独下载。
 
-![已有会话水印与解析](docs/images/01-session-watermark-parse.png)
+![已有会话水印与解析](https://s1.mnat.cn/2026/09/03/6a9941882eb53.png)
 
 ### 2. 新生成图片：水印自动消失
 
 插件就绪后，新生成的图片在对话页直接以无水印展示；页内面板「图片」Tab 同步收录为「无水印图片」。
 
-![新生成图片无水印](docs/images/02-new-image-no-watermark.png)
+![新生成图片无水印](https://s1.mnat.cn/2026/09/03/6a994187eba84.png)
 
 同会话内连续生成多张图时，对话流与面板都会保持无水印状态：
 
-![多图无水印与面板](docs/images/02b-new-images-panel.png)
+![多图无水印与面板](https://s1.mnat.cn/2026/09/03/6a99418c382f9.png)
 
 ### 3. 一键下载 · 图片 / 视频分类
 
 Popup 提供「全部 / 图片 / 视频」筛选、全选与**批量下载**；页内面板同样分 Tab，支持单项「下载」与「全部下载」。
 
-![分类与批量下载](docs/images/04-popup-classify-download.png)
+![分类与批量下载](https://s1.mnat.cn/2026/09/03/6a99418ca320c.png)
 
 ### 4. 全部会话资源管理
 
 Popup 可按「会话标题 - Chat ID」切换，支持 **全部会话** 汇总本机已捕获的图片 / 视频（非豆包账号全量历史）。
 
-![全部会话资源管理](docs/images/03-popup-all-sessions.png)
+![全部会话资源管理](https://s1.mnat.cn/2026/09/03/6a99418783755.png)
 
 ### 5. 按类型筛选（视频）
 
 切换到「视频」Tab 后只显示视频资源，可继续全选或单项下载。
 
-![视频筛选](docs/images/05-popup-video-filter.png)
+![视频筛选](https://s1.mnat.cn/2026/09/03/6a99418cc0daa.png)
 
 ---
 
