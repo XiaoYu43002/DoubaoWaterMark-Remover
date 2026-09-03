@@ -91,6 +91,18 @@ function isConcreteChatId(chatId) {
   return /^[a-zA-Z0-9_-]+$/.test(id);
 }
 
+function readImageMetrics(value) {
+  const width = Number(value?.width || value?.image_width || 0);
+  const height = Number(value?.height || value?.image_height || 0);
+  const sourceUrl = value?.image_ori_raw_url || value?.image_ori_url || value?.best_url || "";
+  const extension = value?.extension || extensionFromUrl(sourceUrl);
+  return {
+    width: width > 0 ? width : 0,
+    height: height > 0 ? height : 0,
+    extension: extension || null
+  };
+}
+
 function normalizeRecord(value) {
   if (!value || typeof value !== "object") return null;
   const validUrl = (url) => isAllowedUrl(url) ? url : null;
@@ -106,6 +118,8 @@ function normalizeRecord(value) {
   // 拒绝首页 / 未进入具体会话时扫到的推荐图、示例图。
   if (!isConcreteChatId(conversationChatId)) return null;
 
+  const metrics = readImageMetrics(value);
+
   return {
     image_id: sanitizeId(value.image_id) || idFromUrl(bestUrl),
     image_ori_raw_url: rawUrl,
@@ -113,6 +127,9 @@ function normalizeRecord(value) {
     image_preview_url: previewUrl,
     image_thumb_url: thumbUrl,
     best_url: bestUrl,
+    width: metrics.width,
+    height: metrics.height,
+    extension: metrics.extension,
     captured_at: Number.isFinite(value.captured_at) ? value.captured_at : Date.now(),
     conversation_id: safeText(value.conversation_id, 500, "legacy"),
     conversation_chat_id: conversationChatId,
@@ -222,6 +239,9 @@ async function processImage(input) {
         image_ori_url: record.image_ori_url || existing.image_ori_url,
         image_preview_url: record.image_preview_url || existing.image_preview_url,
         image_thumb_url: record.image_thumb_url || existing.image_thumb_url,
+        width: existing.width || record.width || 0,
+        height: existing.height || record.height || 0,
+        extension: existing.extension || record.extension || null,
         ...mergeConversationMeta(existing, record),
         updated_at: Date.now()
       };
@@ -238,6 +258,9 @@ async function processImage(input) {
         image_ori_url: record.image_ori_url || sameUrl.image_ori_url,
         image_preview_url: record.image_preview_url || sameUrl.image_preview_url,
         image_thumb_url: record.image_thumb_url || sameUrl.image_thumb_url,
+        width: sameUrl.width || record.width || 0,
+        height: sameUrl.height || record.height || 0,
+        extension: sameUrl.extension || record.extension || null,
         ...mergeConversationMeta(sameUrl, record),
         updated_at: Date.now()
       };
@@ -270,9 +293,9 @@ async function processImage(input) {
       image_thumb_url: record.image_thumb_url,
       thumbnail_blob: thumbnail.thumbnailBlob,
       mime_type: mimeType,
-      extension: resolveExtension(sourceUrl, mimeType),
-      width: thumbnail.width,
-      height: thumbnail.height,
+      extension: resolveExtension(sourceUrl, mimeType) || record.extension || "jpg",
+      width: thumbnail.width || record.width || 0,
+      height: thumbnail.height || record.height || 0,
       captured_at: record.captured_at,
       updated_at: Date.now(),
       conversation_id: record.conversation_id,

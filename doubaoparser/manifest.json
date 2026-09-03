@@ -3,7 +3,7 @@
   "name": "豆包图片视频去水印",
   "short_name": "DoubaoWaterMark-Remover",
   "description": "在豆包对话页一键获取无水印原图与高清无水印视频，并支持一键下载和全部图片视频管理。",
-  "version": "2.5.3",
+  "version": "2.5.4",
   "minimum_chrome_version": "111",
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"

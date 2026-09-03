@@ -165,6 +165,13 @@
       setStatus(response?.ok === false ? "error" : "captured", response?.ok === false ? response.error : `已提交 ${items.length} 项下载`);
     });
 
+    function formatMeta(record, type) {
+      const width = record.width || "?";
+      const height = record.height || "?";
+      const ext = String(type === "image" ? record.extension || "jpg" : record.format || "mp4").toUpperCase();
+      return `${width} × ${height} · ${ext}`;
+    }
+
     function appendItem(type, record) {
       const item = document.createElement("div");
       item.className = "item";
@@ -185,7 +192,18 @@
       const name = document.createElement("strong");
       name.textContent = type === "image" ? "无水印图片" : "无水印视频";
       const meta = document.createElement("span");
-      meta.textContent = `${record.width || "?"} × ${record.height || "?"} · ${String(type === "image" ? record.extension || "jpg" : record.format || "mp4").toUpperCase()}`;
+      meta.textContent = formatMeta(record, type);
+      if (type === "image" && (!record.width || !record.height)) {
+        image.addEventListener("load", () => {
+          if (image.naturalWidth <= 0 || image.naturalHeight <= 0) return;
+          if (!record.width || !record.height) {
+            record.width = image.naturalWidth;
+            record.height = image.naturalHeight;
+            records.set(record.image_id, record);
+          }
+          meta.textContent = formatMeta(record, type);
+        }, { once: true });
+      }
       info.append(name, meta);
       const download = document.createElement("button");
       download.className = "download";
@@ -491,10 +509,25 @@
       .slice(0, 200);
     if (!imageId) return null;
 
+    const width = Number(value.width || value.image_width || 0);
+    const height = Number(value.height || value.image_height || 0);
+    let extension = typeof value.extension === "string" ? value.extension.toLowerCase() : null;
+    if (!extension) {
+      try {
+        const match = decodeURIComponent(new URL(bestUrl).pathname).match(/\.([a-z0-9]{2,5})$/i);
+        extension = match?.[1]?.toLowerCase() === "jpeg" ? "jpg" : match?.[1]?.toLowerCase() || null;
+      } catch (_) {
+        extension = null;
+      }
+    }
+
     return {
       image_id: imageId,
       ...urls,
       best_url: bestUrl,
+      width: width > 0 ? width : 0,
+      height: height > 0 ? height : 0,
+      extension,
       captured_at: Number.isFinite(value.captured_at) ? value.captured_at : Date.now(),
       page_chat_id: typeof value.page_chat_id === "string" ? value.page_chat_id.slice(0, 200) : "",
       ...getConversationMeta()
@@ -513,6 +546,9 @@
     };
     merged.best_url = merged.image_ori_raw_url || merged.image_ori_url ||
       merged.image_preview_url || merged.image_thumb_url;
+    merged.width = next.width || previous.width || 0;
+    merged.height = next.height || previous.height || 0;
+    merged.extension = next.extension || previous.extension || null;
     records.set(merged.image_id, merged);
 
     for (const url of [merged.image_ori_raw_url, merged.image_ori_url,
@@ -584,6 +620,7 @@
     }
     setStatus("loading");
     scheduleEnhance();
+    mediaPanel.refresh();
 
     if (!changed.length) {
       setStatus("captured");
@@ -680,6 +717,7 @@
     const images = document.querySelectorAll('img[src*="byteimg.com"], img[srcset*="byteimg.com"]');
     const nextVisibleIds = new Set();
     let unmatched = 0;
+    let metaUpdated = false;
     for (const img of images) {
       if (img.naturalWidth && img.naturalWidth < 96) continue;
       if (!isConversationMediaImage(img)) continue;
@@ -697,6 +735,14 @@
       imageRecords.set(img, record.image_id);
       nextVisibleIds.add(record.image_id);
 
+      if (img.naturalWidth > 0 && img.naturalHeight > 0 &&
+          (record.width !== img.naturalWidth || record.height !== img.naturalHeight)) {
+        record.width = img.naturalWidth;
+        record.height = img.naturalHeight;
+        records.set(record.image_id, record);
+        metaUpdated = true;
+      }
+
       const displayUrl = record.image_ori_raw_url || record.image_ori_url;
       if (displayUrl && img.src !== displayUrl) {
         img.removeAttribute("srcset");
@@ -709,7 +755,7 @@
       Array.from(nextVisibleIds).some((imageId) => !visibleImageIds.has(imageId));
     visibleImageIds.clear();
     nextVisibleIds.forEach((imageId) => visibleImageIds.add(imageId));
-    if (visibilityChanged) mediaPanel.refresh();
+    if (visibilityChanged || metaUpdated) mediaPanel.refresh();
 
     if (unmatched) requestFiberScan(false, 120);
   }

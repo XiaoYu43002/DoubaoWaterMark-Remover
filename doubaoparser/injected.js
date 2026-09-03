@@ -64,6 +64,18 @@
     return false;
   }
 
+  function extensionHint(url) {
+    try {
+      const match = decodeURIComponent(new URL(url).pathname).match(/\.([a-z0-9]{2,5})$/i);
+      const ext = match?.[1]?.toLowerCase();
+      if (!ext) return null;
+      if (ext === "jpeg") return "jpg";
+      return ["jpg", "png", "webp", "avif", "gif"].includes(ext) ? ext : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   function pickRecord(obj) {
     if (!obj || typeof obj !== "object" || looksLikeNoiseImage(obj)) return null;
 
@@ -99,6 +111,9 @@
       image_preview_url: previewUrl,
       image_thumb_url: thumbUrl,
       best_url: bestUrl,
+      width: width > 0 ? width : 0,
+      height: height > 0 ? height : 0,
+      extension: extensionHint(rawUrl) || extensionHint(oriUrl) || extensionHint(previewUrl) || extensionHint(thumbUrl),
       captured_at: Date.now()
     };
   }
