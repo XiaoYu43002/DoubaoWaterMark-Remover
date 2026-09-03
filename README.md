@@ -1,7 +1,7 @@
 # 豆包无水印图片和视频一键下载
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.5.1-blue.svg)](./CHANGELOG.md)
 [![GitHub stars](https://img.shields.io/github/stars/XiaoYu43002/DoubaoWaterMark-Remover)](https://github.com/XiaoYu43002/DoubaoWaterMark-Remover/stargazers)
 
 在豆包对话页一键获取无水印原图与高清无水印视频的工具/浏览器插件。支持一键下载
