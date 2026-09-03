@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>豆包无水印媒体</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="app-header">
+    <span id="count" class="count-badge">共 0</span>
+    <div class="header-center">
+      <h1>豆包无水印媒体</h1>
+      <div id="status-chip" class="status-chip" data-state="pending">
+        <span id="video-status"><i></i><b>连接中</b></span>
+        <button id="reconnect-video" type="button" title="重连监听">重连</button>
+      </div>
+    </div>
+    <button id="contact-btn" class="contact-btn" type="button" title="复制微信号反馈建议">
+      <img src="contact-icon.png" alt="联系反馈" width="28" height="28">
+    </button>
+  </header>
+
+  <section class="library-controls">
+    <div class="filter-row">
+      <label class="select-shell conversation-select">
+        <select id="conversation-filter" aria-label="按对话筛选">
+          <option value="all">全部会话</option>
+        </select>
+      </label>
+      <button id="clear-all" class="danger-soft icon-btn" title="清空全部本地记录">清空</button>
+    </div>
+
+    <div id="media-tabs" class="media-tabs" role="tablist" aria-label="媒体类型">
+      <button type="button" class="media-tab active" data-kind="all">全部</button>
+      <button type="button" class="media-tab" data-kind="image">图片</button>
+      <button type="button" class="media-tab" data-kind="video">视频</button>
+    </div>
+  </section>
+
+  <section id="toolbar" hidden>
+    <label class="select-all-label"><input id="select-all" type="checkbox"> 全选</label>
+    <span id="selected-count">已选 0</span>
+    <button id="batch-download" class="primary" disabled>批量下载</button>
+  </section>
+
+  <div id="notice" role="status" hidden></div>
+
+  <main>
+    <div id="loading" class="state"><span class="spinner"></span><p>加载中…</p></div>
+    <div id="empty" class="state" hidden>
+      <div class="empty-icon">◇</div>
+      <strong>暂无媒体</strong>
+      <p>刷新含生成图片或视频的会话后会自动出现。</p>
+    </div>
+    <div id="error" class="state error" hidden></div>
+    <div id="gallery" aria-live="polite"></div>
+  </main>
+
+  <script src="db.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

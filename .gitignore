@@ -1,0 +1,34 @@
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs & temp
+*.log
+*.tmp
+*.temp
+.cache/
+
+# Packaging
+*.zip
+*.crx
+*.pem
+dist/
+build/
+release/
+
+# Env / secrets
+.env
+.env.*
+*.key
+
+# Node (if added later)
+node_modules/
+npm-debug.log*

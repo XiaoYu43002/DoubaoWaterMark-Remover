@@ -1,0 +1,50 @@
+{
+  "manifest_version": 3,
+  "name": "Doubao Original Media Helper",
+  "description": "在豆包对话页面显示、管理并下载已生成图片和视频的无水印原始版本。",
+  "version": "2.3.2",
+  "minimum_chrome_version": "111",
+  "permissions": [
+    "debugger",
+    "downloads",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://*.doubao.com/*",
+    "https://*.byteimg.com/*",
+    "https://*.snssdk.com/*",
+    "https://*.byteintlapi.com/*",
+    "https://*.douyin.com/*",
+    "https://*.douyinpic.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "豆包无水印媒体"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.doubao.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_start",
+      "world": "ISOLATED"
+    },
+    {
+      "matches": [
+        "https://*.doubao.com/*"
+      ],
+      "js": [
+        "injected.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ]
+}
