@@ -268,6 +268,24 @@ async function processImage(input) {
       return merged;
     }
 
+    const sameAsset = await findImageByAssetKey(sourceUrl);
+    if (sameAsset) {
+      const merged = {
+        ...sameAsset,
+        image_ori_raw_url: record.image_ori_raw_url || sameAsset.image_ori_raw_url,
+        image_ori_url: record.image_ori_url || sameAsset.image_ori_url,
+        image_preview_url: record.image_preview_url || sameAsset.image_preview_url,
+        image_thumb_url: record.image_thumb_url || sameAsset.image_thumb_url,
+        width: sameAsset.width || record.width || 0,
+        height: sameAsset.height || record.height || 0,
+        extension: sameAsset.extension || record.extension || null,
+        ...mergeConversationMeta(sameAsset, record),
+        updated_at: Date.now()
+      };
+      await saveImage(merged);
+      return merged;
+    }
+
     const response = await fetch(sourceUrl, { credentials: "omit", cache: "force-cache" });
     if (!response.ok) throw new Error(`原图请求失败：HTTP ${response.status}`);
     const declaredLength = Number(response.headers.get("content-length") || 0);

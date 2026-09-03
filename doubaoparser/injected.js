@@ -9,6 +9,7 @@
   const MESSAGE_READY = "DOUBAO_ORIGINAL_BRIDGE_READY";
   const records = new Map();
   const rawUrlIndex = new Map();
+  const assetKeyIndex = new Map();
   const originalParse = JSON.parse;
   let captureCount = 0;
   let lastFiberScanAt = 0;
@@ -76,6 +77,50 @@
     return /reference|attach|input|upload|compose|draft|pending|ref_?image|user_image|quote/.test(hint);
   }
 
+  function assetKeyFromUrl(value) {
+    if (typeof value !== "string" || !value) return "";
+    try {
+      const url = new URL(value);
+      if (url.protocol !== "https:") return "";
+      let path = decodeURIComponent(url.pathname);
+      path = path.replace(/~[^/]+$/i, "");
+      path = path.replace(/\.(?:jpe?g|png|webp|avif|gif)$/i, "");
+      return path.toLowerCase();
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function assetKeysFromCandidate(record) {
+    const keys = new Set();
+    for (const url of [
+      record?.image_ori_raw_url,
+      record?.image_ori_url,
+      record?.image_preview_url,
+      record?.image_thumb_url,
+      record?.best_url
+    ]) {
+      const key = assetKeyFromUrl(url);
+      if (key) keys.add(key);
+    }
+    return keys;
+  }
+
+  function imageIdForAssetKey(key) {
+    return key ? assetKeyIndex.get(key) || null : null;
+  }
+
+  function findExistingIdForCandidate(candidate) {
+    const rawUrl = canonicalRawUrl(candidate);
+    const byUrl = rawUrl ? imageIdForRawUrl(rawUrl) : null;
+    if (byUrl) return byUrl;
+    for (const key of assetKeysFromCandidate(candidate)) {
+      const id = imageIdForAssetKey(key);
+      if (id) return id;
+    }
+    return null;
+  }
+
   function canonicalRawUrl(record) {
     return record?.image_ori_raw_url || record?.best_url || "";
   }
@@ -83,6 +128,9 @@
   function rememberRawUrl(record) {
     const rawUrl = canonicalRawUrl(record);
     if (rawUrl) rawUrlIndex.set(rawUrl, record.image_id);
+    for (const key of assetKeysFromCandidate(record)) {
+      assetKeyIndex.set(key, record.image_id);
+    }
     return record;
   }
 
@@ -203,8 +251,7 @@
   }
 
   function mergeRecord(next) {
-    const rawUrl = canonicalRawUrl(next);
-    const existingId = rawUrl ? imageIdForRawUrl(rawUrl) : null;
+    const existingId = findExistingIdForCandidate(next);
     if (existingId) next.image_id = existingId;
 
     const previous = records.get(next.image_id);
@@ -267,6 +314,7 @@
     if (chatId !== boundChatId) {
       records.clear();
       rawUrlIndex.clear();
+      assetKeyIndex.clear();
       boundChatId = chatId;
       captureCount = 0;
       window.postMessage({ type: "DOUBAO_CHAT_CHANGED", chat_id: chatId }, location.origin);
@@ -350,6 +398,17 @@
           const candidate = pickCreationImage(item);
           if (!candidate) continue;
           candidate.page_chat_id = chatId;
+          const existingId = findExistingIdForCandidate(candidate);
+          if (existingId) {
+            candidate.image_id = existingId;
+            mergeRecord(candidate);
+            if (candidate.image_ori_raw_url && item?.image) {
+              upgradePageImageData(item.image, candidate.image_ori_raw_url);
+            } else if (candidate.image_ori_raw_url) {
+              upgradePageImageData(item, candidate.image_ori_raw_url);
+            }
+            continue;
+          }
           const changed = mergeRecord(candidate);
           if (changed) {
             found.push(changed);
@@ -415,6 +474,18 @@
           const candidate = pickCreationImage(item);
           if (!candidate) continue;
           candidate.page_chat_id = chatId;
+          const existingId = findExistingIdForCandidate(candidate);
+          if (existingId) {
+            candidate.image_id = existingId;
+            mergeRecord(candidate);
+            if (candidate.image_ori_raw_url && item?.image) {
+              upgradePageImageData(item.image, candidate.image_ori_raw_url);
+            } else if (candidate.image_ori_raw_url) {
+              upgradePageImageData(item, candidate.image_ori_raw_url);
+            }
+            creationHits += 1;
+            continue;
+          }
           const changed = mergeRecord(candidate);
           if (persist) {
             if (changed) found.push(changed);

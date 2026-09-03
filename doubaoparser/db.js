@@ -252,6 +252,41 @@ async function clearVideos() {
   }
 }
 
+function assetKeyFromUrl(value) {
+  if (typeof value !== "string" || !value) return "";
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:") return "";
+    let path = decodeURIComponent(url.pathname);
+    path = path.replace(/~[^/]+$/i, "");
+    path = path.replace(/\.(?:jpe?g|png|webp|avif|gif)$/i, "");
+    return path.toLowerCase();
+  } catch (_) {
+    return "";
+  }
+}
+
+function imageAssetKeys(record) {
+  const keys = new Set();
+  for (const field of ["raw_url", "image_ori_raw_url", "image_ori_url", "image_preview_url", "image_thumb_url"]) {
+    const key = assetKeyFromUrl(record?.[field]);
+    if (key) keys.add(key);
+  }
+  return keys;
+}
+
+async function findImageByAssetKey(sourceUrl) {
+  const target = assetKeyFromUrl(sourceUrl);
+  if (!target) return null;
+  const images = await getAllImages();
+  for (const image of images) {
+    for (const key of imageAssetKeys(image)) {
+      if (key === target) return image;
+    }
+  }
+  return null;
+}
+
 function estimateRecordBytes(record) {
   const thumbnailBytes = record.thumbnail_blob instanceof Blob ? record.thumbnail_blob.size : 0;
   const textBytes = [

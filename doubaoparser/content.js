@@ -555,13 +555,33 @@
     return rect.bottom > window.innerHeight * 0.72 && rect.height < 220;
   }
 
+  function assetKeyFromUrl(value) {
+    if (typeof value !== "string" || !value) return "";
+    try {
+      const url = new URL(value);
+      if (url.protocol !== "https:") return "";
+      let path = decodeURIComponent(url.pathname);
+      path = path.replace(/~[^/]+$/i, "");
+      path = path.replace(/\.(?:jpe?g|png|webp|avif|gif)$/i, "");
+      return path.toLowerCase();
+    } catch (_) {
+      return "";
+    }
+  }
+
   function resolveImageIdByRawUrl(url) {
     if (!url) return null;
     const normalized = normalizeUrl(url);
     const key = pathKey(url);
     const id = (normalized && urlIndex.get(`url:${normalized}`)) ||
       (key && urlIndex.get(`path:${key}`));
-    return id && records.has(id) ? id : null;
+    if (id && records.has(id)) return id;
+    const assetKey = assetKeyFromUrl(url);
+    if (assetKey) {
+      const assetId = urlIndex.get(`asset:${assetKey}`);
+      if (assetId && records.has(assetId)) return assetId;
+    }
+    return null;
   }
 
   function registerRecord(next) {
@@ -589,8 +609,10 @@
       merged.image_preview_url, merged.image_thumb_url]) {
       const normalized = normalizeUrl(url);
       const key = pathKey(url);
+      const assetKey = assetKeyFromUrl(url);
       if (normalized) urlIndex.set(`url:${normalized}`, merged.image_id);
       if (key) urlIndex.set(`path:${key}`, merged.image_id);
+      if (assetKey) urlIndex.set(`asset:${assetKey}`, merged.image_id);
     }
     return merged;
   }

@@ -57,7 +57,25 @@ function conversationChatId(item) {
 }
 
 function imageStorageKey(record) {
+  for (const field of ["raw_url", "image_ori_raw_url", "image_ori_url", "image_preview_url", "image_thumb_url"]) {
+    const key = assetKeyFromUrl(record?.[field]);
+    if (key) return key;
+  }
   return String(record.raw_url || record.image_ori_raw_url || "").trim();
+}
+
+function assetKeyFromUrl(value) {
+  if (typeof value !== "string" || !value) return "";
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:") return "";
+    let path = decodeURIComponent(url.pathname);
+    path = path.replace(/~[^/]+$/i, "");
+    path = path.replace(/\.(?:jpe?g|png|webp|avif|gif)$/i, "");
+    return path.toLowerCase();
+  } catch (_) {
+    return "";
+  }
 }
 
 function dedupeMediaItems(items) {
