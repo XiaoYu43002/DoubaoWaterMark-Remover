@@ -1,7 +1,7 @@
 # 豆包无水印图片和视频一键下载
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![Version](https://img.shields.io/badge/version-2.5.1-blue.svg)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.5.2-blue.svg)](./CHANGELOG.md)
 [![GitHub stars](https://img.shields.io/github/stars/XiaoYu43002/DoubaoWaterMark-Remover)](https://github.com/XiaoYu43002/DoubaoWaterMark-Remover/stargazers)
 
 在豆包对话页一键获取无水印原图与高清无水印视频的工具/浏览器插件。支持一键下载
@@ -22,7 +22,7 @@
 1. 打开本仓库，点击 **Code → Download ZIP**，或 `git clone` 后解压到固定目录  
 2. 打开 Chrome → `chrome://extensions/` → 开启 **开发者模式**  
 3. 点击 **「加载已解压的扩展程序」**，选择仓库里的 **`doubaoparser`** 文件夹  
-4. 确认名称为 `豆包图片视频去水印`（DoubaoWaterMark-Remover）、版本 `2.5.0`  
+4. 确认名称为 `豆包图片视频去水印`（DoubaoWaterMark-Remover）、版本 `2.5.2`  
 5. 打开 [豆包](https://www.doubao.com)，按 `Ctrl + Shift + R` 强制刷新  
 
 若曾安装其它占用 Debugger 的豆包视频类扩展，请先禁用。更细的回归与排错见 [docs/testing.md](./docs/testing.md)。
@@ -82,18 +82,39 @@
 
 ## 界面演示
 
-> 可将截图放入 `docs/images/` 后取消下面注释或替换路径。
+### 1. 已有会话：水印与解析
 
-```text
-页内媒体面板 · Popup 历史库 · 图片/视频下载效果
-（截图待补充：docs/images/panel.png、popup.png、download-demo.png）
-```
+打开旧会话时，对话里仍可能看到「豆包AI生成」等水印；右侧页内面板会解析出对应资源，并标注为**无水印**，可单独下载。
 
-<!-- 有截图后改为：
-![页内面板](docs/images/panel.png)
-![Popup](docs/images/popup.png)
-![下载效果](docs/images/download-demo.png)
--->
+![已有会话水印与解析](docs/images/01-session-watermark-parse.png)
+
+### 2. 新生成图片：水印自动消失
+
+插件就绪后，新生成的图片在对话页直接以无水印展示；页内面板「图片」Tab 同步收录为「无水印图片」。
+
+![新生成图片无水印](docs/images/02-new-image-no-watermark.png)
+
+同会话内连续生成多张图时，对话流与面板都会保持无水印状态：
+
+![多图无水印与面板](docs/images/02b-new-images-panel.png)
+
+### 3. 一键下载 · 图片 / 视频分类
+
+Popup 提供「全部 / 图片 / 视频」筛选、全选与**批量下载**；页内面板同样分 Tab，支持单项「下载」与「全部下载」。
+
+![分类与批量下载](docs/images/04-popup-classify-download.png)
+
+### 4. 全部会话资源管理
+
+Popup 可按「会话标题 - Chat ID」切换，支持 **全部会话** 汇总本机已捕获的图片 / 视频（非豆包账号全量历史）。
+
+![全部会话资源管理](docs/images/03-popup-all-sessions.png)
+
+### 5. 按类型筛选（视频）
+
+切换到「视频」Tab 后只显示视频资源，可继续全选或单项下载。
+
+![视频筛选](docs/images/05-popup-video-filter.png)
 
 ---
 
@@ -149,8 +170,11 @@ DoubaoWaterMark-Remover/
 ├── README.md
 ├── CHANGELOG.md
 ├── LICENSE
-├── docs/testing.md
+├── docs/
+│   ├── testing.md
+│   └── images/          # README 界面演示截图
 ├── doubaoparser/       # Chrome「加载已解压的扩展程序」选此目录
+│   ├── icons/
 │   ├── opaque/
 │   │   └── xcodec.wasm # 运行时还原材料（Wasm）
 │   └── opaque-material.js
