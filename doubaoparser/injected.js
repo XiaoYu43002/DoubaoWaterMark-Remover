@@ -8,6 +8,7 @@
   const MESSAGE_STATUS = "DOUBAO_ORIGINAL_STATUS";
   const MESSAGE_READY = "DOUBAO_ORIGINAL_BRIDGE_READY";
   const records = new Map();
+  const rawUrlIndex = new Map();
   const originalParse = JSON.parse;
   let captureCount = 0;
   let lastFiberScanAt = 0;
@@ -61,7 +62,33 @@
       return true;
     }
     if (obj.video_id || obj.video_info || obj.video_list) return true;
+    if (obj.is_reference || obj.reference_image || obj.ref_image || obj.input_image) return true;
     return false;
+  }
+
+  function looksLikeReferencePayload(item) {
+    if (!item || typeof item !== "object") return false;
+    if (looksLikeNoiseImage(item)) return true;
+    const hint = [
+      item.role, item.reference_type, item.attachment_type, item.input_type,
+      item.source_type, item.scene, item.type, item.content_type, item.media_type
+    ].map((value) => String(value || "").toLowerCase()).join(" ");
+    return /reference|attach|input|upload|compose|draft|pending|ref_?image|user_image|quote/.test(hint);
+  }
+
+  function canonicalRawUrl(record) {
+    return record?.image_ori_raw_url || record?.best_url || "";
+  }
+
+  function rememberRawUrl(record) {
+    const rawUrl = canonicalRawUrl(record);
+    if (rawUrl) rawUrlIndex.set(rawUrl, record.image_id);
+    return record;
+  }
+
+  function imageIdForRawUrl(rawUrl) {
+    if (!rawUrl) return null;
+    return rawUrlIndex.get(rawUrl) || null;
   }
 
   function extensionHint(url) {
@@ -119,7 +146,7 @@
   }
 
   function pickCreationImage(item) {
-    if (!item || typeof item !== "object") return null;
+    if (!item || typeof item !== "object" || looksLikeReferencePayload(item)) return null;
     const image = item.image && typeof item.image === "object" ? item.image : item;
     return pickRecord(image);
   }
@@ -176,23 +203,33 @@
   }
 
   function mergeRecord(next) {
+    const rawUrl = canonicalRawUrl(next);
+    const existingId = rawUrl ? imageIdForRawUrl(rawUrl) : null;
+    if (existingId) next.image_id = existingId;
+
     const previous = records.get(next.image_id);
     if (!previous) {
       records.set(next.image_id, next);
+      rememberRawUrl(next);
       return next;
     }
 
     const merged = {
       ...previous,
+      ...next,
       image_ori_raw_url: next.image_ori_raw_url || previous.image_ori_raw_url,
       image_ori_url: next.image_ori_url || previous.image_ori_url,
       image_preview_url: next.image_preview_url || previous.image_preview_url,
       image_thumb_url: next.image_thumb_url || previous.image_thumb_url,
+      width: next.width || previous.width || 0,
+      height: next.height || previous.height || 0,
+      extension: next.extension || previous.extension || null,
       captured_at: Math.min(previous.captured_at, next.captured_at)
     };
     merged.best_url = merged.image_ori_raw_url || merged.image_ori_url ||
       merged.image_preview_url || merged.image_thumb_url;
     records.set(next.image_id, merged);
+    rememberRawUrl(merged);
     return quality(merged) > quality(previous) ? merged : null;
   }
 
@@ -229,6 +266,7 @@
     const chatId = getPageChatId();
     if (chatId !== boundChatId) {
       records.clear();
+      rawUrlIndex.clear();
       boundChatId = chatId;
       captureCount = 0;
       window.postMessage({ type: "DOUBAO_CHAT_CHANGED", chat_id: chatId }, location.origin);
@@ -301,6 +339,47 @@
       total: records.size,
       capture_count: captureCount
     }, location.origin);
+  }
+
+  function collectCreationImages(node, parentKey, chatId, found, budget = { left: 120 }) {
+    if (!node || typeof node !== "object" || budget.left <= 0) return;
+    if (Array.isArray(node)) {
+      if (/creations/i.test(parentKey)) {
+        for (const item of node) {
+          if (budget.left <= 0) break;
+          const candidate = pickCreationImage(item);
+          if (!candidate) continue;
+          candidate.page_chat_id = chatId;
+          const changed = mergeRecord(candidate);
+          if (changed) {
+            found.push(changed);
+            budget.left -= 1;
+          }
+        }
+      }
+      for (const item of node) collectCreationImages(item, parentKey, chatId, found, budget);
+      return;
+    }
+    for (const key of Object.keys(node)) {
+      collectCreationImages(node[key], key, chatId, found, budget);
+    }
+  }
+
+  function scanCreationsOnly(root, chatId) {
+    const found = [];
+    collectCreationImages(root, "", chatId, found);
+    postImages(found.slice(0, 200));
+    return found.length;
+  }
+
+  function canPersistUnscopedPayload(text, chatId) {
+    if (!text || !chatId) return false;
+    if (!text.includes("creations") || !text.includes("image_ori_raw")) return false;
+    // 大包/历史同步常含其它会话 ID 或分页字段，不能无会话标记入库。
+    if (text.length > 180000) return false;
+    if (/message_list|has_more|conversation_list|history_message|recent_chat/i.test(text)) return false;
+    const foreignIds = (text.match(/\d{17,20}/g) || []).filter((id) => id !== chatId);
+    return foreignIds.length === 0;
   }
 
   function scanObject(root, maxInspected = 9000, options = {}) {
@@ -389,6 +468,31 @@
     return found.length;
   }
 
+  function isComposerOrInputImage(img) {
+    if (!img?.isConnected) return false;
+    if (img.closest([
+      "footer",
+      "form",
+      '[class*="composer" i]',
+      '[class*="input" i]',
+      '[class*="editor" i]',
+      '[class*="textarea" i]',
+      '[class*="prompt" i]',
+      '[data-testid*="composer" i]',
+      '[data-testid*="input" i]',
+      '[aria-label*="输入" i]',
+      '[placeholder*="输入" i]'
+    ].join(","))) {
+      return true;
+    }
+    const rect = img.getBoundingClientRect();
+    return rect.bottom > window.innerHeight * 0.72 && rect.height < 220;
+  }
+
+  function shouldPersistFiberImage(img) {
+    return isLikelyConversationImage(img) && !isComposerOrInputImage(img);
+  }
+
   function scanReactFiber(force = false) {
     if (!isConcreteChatPage()) return;
     syncInjectedChat();
@@ -404,8 +508,9 @@
       if (scannedTargets >= 10) break;
       let node = img;
       let imageScanned = false;
+      const allowPersist = shouldPersistFiberImage(img);
 
-      // Fiber 只负责替换页面水印地址，不把深扫到的其它会话图片入库。
+      // Fiber 负责替换水印；仅会话主区图片入库，输入框参考图不入库。
       for (let domLevel = 0; node && domLevel < 2; domLevel += 1, node = node.parentElement) {
         let propertyNames = [];
         try {
@@ -428,7 +533,9 @@
           scannedTargets += 1;
 
           // 会话主区图片：替换水印的同时入库。新对话流式包常不含 chatId，仅靠 JSON.parse 会漏检。
-          const fiberScanOpts = { persist: true, requireChatScope: false, forcePost: true };
+          const fiberScanOpts = allowPersist
+            ? { persist: true, requireChatScope: false, forcePost: false }
+            : { persist: false, requireChatScope: false };
           let foundCount = 0;
           if (name.startsWith("__reactProps$")) {
             foundCount = scanObject(reactValue, 320, fiberScanOpts);
@@ -522,10 +629,11 @@
       ) {
         captureCount += 1;
         const hasChatMarker = text.includes(chatId);
-        scanObject(result, 9000, {
-          persist: true,
-          requireChatScope: hasChatMarker
-        });
+        if (hasChatMarker) {
+          scanObject(result, 9000, { persist: true, requireChatScope: true });
+        } else if (canPersistUnscopedPayload(text, chatId)) {
+          scanCreationsOnly(result, chatId);
+        }
       }
     } catch (error) {
       console.debug("[Doubao Original] 解析图片数据失败", error);

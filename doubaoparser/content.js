@@ -534,7 +534,41 @@
     };
   }
 
+  function isComposerOrInputImage(img) {
+    if (!img?.isConnected) return false;
+    if (img.closest([
+      "footer",
+      "form",
+      '[class*="composer" i]',
+      '[class*="input" i]',
+      '[class*="editor" i]',
+      '[class*="textarea" i]',
+      '[class*="prompt" i]',
+      '[data-testid*="composer" i]',
+      '[data-testid*="input" i]',
+      '[aria-label*="输入" i]',
+      '[placeholder*="输入" i]'
+    ].join(","))) {
+      return true;
+    }
+    const rect = img.getBoundingClientRect();
+    return rect.bottom > window.innerHeight * 0.72 && rect.height < 220;
+  }
+
+  function resolveImageIdByRawUrl(url) {
+    if (!url) return null;
+    const normalized = normalizeUrl(url);
+    const key = pathKey(url);
+    const id = (normalized && urlIndex.get(`url:${normalized}`)) ||
+      (key && urlIndex.get(`path:${key}`));
+    return id && records.has(id) ? id : null;
+  }
+
   function registerRecord(next) {
+    const rawUrl = next.image_ori_raw_url || next.best_url;
+    const existingId = resolveImageIdByRawUrl(rawUrl);
+    if (existingId) next.image_id = existingId;
+
     const previous = records.get(next.image_id) || {};
     const merged = {
       ...previous,
@@ -785,6 +819,7 @@
 
     const leftGuard = Math.min(180, window.innerWidth * 0.14);
     if (rect.right <= leftGuard) return false;
+    if (isComposerOrInputImage(img)) return false;
     return true;
   }
 

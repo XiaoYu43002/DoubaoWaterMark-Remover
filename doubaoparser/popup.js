@@ -1,7 +1,7 @@
 "use strict";
 
 /** 反馈微信号：点击右上角联系图标后复制。请改成你的真实微信号。 */
-const WECHAT_ID = "请填写微信号";
+const WECHAT_ID = "suo";
 
 const elements = Object.fromEntries([
   "gallery", "count", "conversation-filter",
@@ -56,6 +56,28 @@ function conversationChatId(item) {
   return internalMatch?.[1] && internalMatch[1] !== "legacy" ? internalMatch[1] : "";
 }
 
+function imageStorageKey(record) {
+  return String(record.raw_url || record.image_ori_raw_url || "").trim();
+}
+
+function dedupeMediaItems(items) {
+  const seen = new Set();
+  const output = [];
+  for (const item of items) {
+    if (item.type !== "image") {
+      output.push(item);
+      continue;
+    }
+    const key = imageStorageKey(item.record);
+    if (key) {
+      if (seen.has(key)) continue;
+      seen.add(key);
+    }
+    output.push(item);
+  }
+  return output;
+}
+
 function conversationTitle(item) {
   const chatId = conversationChatId(item);
   if (!chatId) return "未分类历史";
@@ -72,10 +94,11 @@ function activeChatId() {
 function belongsToSelectedConversation(item, selectedId) {
   if (!selectedId || selectedId === "all") return true;
   if (conversationId(item) === selectedId) return true;
-  // 当前会话：允许用 chat id 精确兼容旧记录，但不把其他会话混进来。
   if (selectedId === activeConversationId) {
     const selectedChat = activeChatId();
     const itemChat = conversationChatId(item);
+    // 仅兼容旧记录：conversation_id 不一致时不靠 chatId 兜底，避免刷新后串会话。
+    if (conversationId(item) !== "legacy" && conversationId(item) !== selectedId) return false;
     return Boolean(selectedChat && itemChat && selectedChat === itemChat && selectedChat !== "home");
   }
   return false;
@@ -158,10 +181,10 @@ async function loadMedia(options = {}) {
   try {
     await pruneImplausibleImages().catch(() => 0);
     const [imageRecords, videoRecords] = await Promise.all([getAllImages(), getAllVideos()]);
-    media = [
+    media = dedupeMediaItems([
       ...imageRecords.filter(isPlausibleStoredImage).map(normalizeImage),
       ...videoRecords.map(normalizeVideo)
-    ].sort((a, b) => (b.record.captured_at || 0) - (a.record.captured_at || 0));
+    ]).sort((a, b) => (b.record.captured_at || 0) - (a.record.captured_at || 0));
     buildConversationFilter(options.keepFilter !== false, options.preferCurrent === true);
     render();
     elements.clearAll.disabled = media.length === 0;
