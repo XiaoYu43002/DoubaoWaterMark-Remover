@@ -1,9 +1,5 @@
 "use strict";
 
-/**
- * Opaque material loader: split + Base64 + XOR, finalized via Wasm.
- * Raises casual-read difficulty only — not a secrecy boundary.
- */
 (() => {
   const _B = [
     "D/WgGhSacOZZqfcfQZol6Qv08RwVm3bnWqfzHUTKdOQ=",
@@ -11,7 +7,6 @@
     "XaX9TBbOIrYLqaEWE54ttAmnpRlFzSbnWKClF0LJJ7Y=",
     "Cvf0GxadJOgCo6VLEZos5AKm9xwVniexCKmlTxPMIOg="
   ];
-  // key bytes stored XOR-masked so the raw schedule is not obvious in greps
   const _M = 0xaa;
   const _K = [0x91, 0x3b, 0x6e, 0x84, 0xdd, 0x02, 0xbf, 0x7a].map((v) => v ^ _M);
 
@@ -61,7 +56,6 @@
     }
     let text = "";
     for (let i = 0; i < enc.length; i += 1) text += String.fromCharCode(memory[i]);
-    // scrub plaintext bytes from wasm memory after copy
     memory.fill(0, 0, enc.length);
     if (!/^[0-9a-f]{128}$/i.test(text)) throw new Error("opaque material invalid");
     _hex = text.toLowerCase();
