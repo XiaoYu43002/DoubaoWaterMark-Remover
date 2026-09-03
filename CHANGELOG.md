@@ -2,6 +2,13 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.5.0] - 2026-09-03
+
+### Changed
+
+- 视频解密盐改为分片 Base64 + XOR，并由 Wasm 模块在运行时还原（提高阅读难度，非绝对保密）
+- 新增 `opaque-material.js` 与 `opaque/xcodec.wasm`
+
 ## [2.4.6] - 2026-09-03
 
 ### Fixed

@@ -11,11 +11,7 @@
   const CAPTURE_MODE_CURRENT = "current_only";
   const FALLBACK_HOSTS = ["doubao.com", "snssdk.com", "byteintlapi.com"];
   const VIDEO_EXTENSIONS = new Set(["mp4", "webm", "mov", "mkv"]);
-  const QAAB_SALT_HEX =
-    "4dd4c2e6b83162090e52b3c7a6733ba4" +
-    "1cb2462b829ab58a196b39db57177524" +
-    "f49baf7f08e8d68d26a72e37c1a95a2f" +
-    "1f05a51892aef2949732b62a38aadd58";
+  let _opaqueSaltHex = "";
 
   const attachedTabs = new Set();
   const attachingTabs = new Set();
@@ -550,6 +546,13 @@
     return "";
   }
 
+  async function _loadOpaqueSalt() {
+    if (_opaqueSaltHex) return _opaqueSaltHex;
+    if (typeof resolveOpaqueSaltHex !== "function") throw new Error("opaque resolver missing");
+    _opaqueSaltHex = await resolveOpaqueSaltHex();
+    return _opaqueSaltHex;
+  }
+
   async function decodeMainUrl(token, keySeed) {
     if (isHttpUrl(token)) return token;
     const plain = base64DecodeLoose(token);
@@ -557,16 +560,17 @@
       const text = asciiUrl(plain);
       if (isHttpUrl(text)) return text;
     }
-    return token.startsWith("qAAB") && keySeed ? decodeQaab(token, keySeed) : "";
+    return token.startsWith("qAAB") && keySeed ? _decodeWrappedMediaToken(token, keySeed) : "";
   }
 
-  async function decodeQaab(token, keySeed) {
+  async function _decodeWrappedMediaToken(token, keySeed) {
     const data = base64DecodeLoose(token);
     const seed = base64DecodeLoose(keySeed);
     if (!data || !seed) return "";
+    const saltHex = await _loadOpaqueSalt();
     const digest1 = new Uint8Array(await crypto.subtle.digest("SHA-512", seed.slice(0, 32)));
     const digest2 = new Uint8Array(await crypto.subtle.digest(
-      "SHA-512", concatBytes(digest1, hexToBytes(QAAB_SALT_HEX))
+      "SHA-512", concatBytes(digest1, hexToBytes(saltHex))
     ));
     const key = digest2.slice(0, 16);
     const iv = digest2.slice(16, 32);

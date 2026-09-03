@@ -1,6 +1,6 @@
 "use strict";
 
-importScripts("db.js", "video.js");
+importScripts("db.js", "opaque-material.js", "video.js");
 
 const MAX_IMAGE_BYTES = 60 * 1024 * 1024;
 const DEFAULT_CACHE_MB = 100;
