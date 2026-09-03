@@ -92,10 +92,13 @@
         .info strong{display:block;font-size:11px}.info span{display:block;margin-top:4px;overflow:hidden;text-overflow:ellipsis;
           white-space:nowrap;color:#a1a1aa;font-size:9px}.download{height:29px;padding:0 9px;border:0;border-radius:8px;background:#2563eb;color:#fff;font-size:10px}
         footer{display:flex;flex:0 0 auto;align-items:center;justify-content:space-between;gap:8px;padding:9px 11px;border-top:1px solid #e4e4e7;background:#fff}
-        footer button{height:31px;padding:0 12px;border:0;border-radius:9px;font-size:11px;font-weight:600}
+        footer button{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:31px;padding:0 12px;border:0;border-radius:9px;font-size:11px;font-weight:600}
+        footer button svg{width:14px;height:14px;flex:0 0 auto}
         #support-author{background:#f4f4f5;color:#3f3f46}
         #support-author:hover{background:#e4e4e7}
+        #support-author svg{stroke:#ef4444;fill:none}
         #download-all{background:#2563eb;color:#fff}
+        #download-all svg{stroke:currentColor;fill:none}
         #download-all:disabled{opacity:.45;cursor:not-allowed}
         #launcher{display:none;width:46px;height:46px;border:0;border-radius:50%;background:#0057ff;color:#fff;font-size:20px;box-shadow:0 8px 24px rgba(0,87,255,.3)}
         #panel.closed{display:none}#panel.closed+#launcher{display:block}
@@ -105,8 +108,14 @@
         <nav id="tabs"><button class="tab active" data-type="image">图片 <b id="image-count">0</b></button><button class="tab" data-type="video">视频 <b id="video-count">0</b></button></nav>
         <div id="body"><div id="list"><div class="empty">当前会话暂未识别到图片</div></div></div>
         <footer>
-          <button id="support-author" type="button" title="支持作者十一木">支持作者</button>
-          <button id="download-all" type="button" disabled>全部下载</button>
+          <button id="support-author" type="button" title="支持作者十一木">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 5.6a5.1 5.1 0 0 0-7.2 0L12 7.2l-1.6-1.6a5.1 5.1 0 0 0-7.2 7.2l1.6 1.6L12 21.2l7.2-7.2 1.6-1.6a5.1 5.1 0 0 0 0-7.2z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>支持作者</span>
+          </button>
+          <button id="download-all" type="button" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10m0 0 4-4m-4 4-4-4M5 18h14" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>全部下载</span>
+          </button>
         </footer>
       </section>
       <button id="launcher" title="打开无水印媒体面板">◈</button>
@@ -144,12 +153,13 @@
         : Array.from(sessionVideos.values());
       if (!items.length) return;
       downloadAll.disabled = true;
-      downloadAll.textContent = "提交中…";
+      const downloadLabel = downloadAll.querySelector("span");
+      if (downloadLabel) downloadLabel.textContent = "提交中…";
       const response = await sendRuntimeMessage(activeType === "image"
         ? { type: "BATCH_DOWNLOAD", images: items }
         : { type: "BATCH_VIDEO_DOWNLOAD", videos: items });
       downloadAll.disabled = false;
-      downloadAll.textContent = "全部下载";
+      if (downloadLabel) downloadLabel.textContent = "全部下载";
       setStatus(response?.ok === false ? "error" : "captured", response?.ok === false ? response.error : `已提交 ${items.length} 项下载`);
     });
 
@@ -205,7 +215,8 @@
       shadow.querySelectorAll(".tab").forEach((button) => button.classList.toggle("active", button.dataset.type === activeType));
       const items = (activeType === "image" ? images : videos).sort((a, b) => (b.captured_at || 0) - (a.captured_at || 0));
       downloadAll.disabled = items.length === 0;
-      downloadAll.textContent = "全部下载";
+      const downloadLabel = downloadAll.querySelector("span");
+      if (downloadLabel) downloadLabel.textContent = "全部下载";
       if (!items.length) {
         const empty = document.createElement("div");
         empty.className = "empty";
