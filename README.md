@@ -1,17 +1,17 @@
 # 豆包无水印图片和视频一键下载
 
-十一木出品 · 在豆包对话页一键获取无水印原图与高清无水印视频。
-
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Version](https://img.shields.io/badge/version-2.3.2-blue.svg)](./CHANGELOG.md)
 [![GitHub stars](https://img.shields.io/github/stars/XiaoYu43002/DoubaoWaterMark-Remover)](https://github.com/XiaoYu43002/DoubaoWaterMark-Remover/stargazers)
 
-一个专门用于豆包网站的同时一键支持对话链接中无水印图片与高清无水印视频的去水印工具/浏览器插件。支持一键下载
+在豆包对话页一键获取无水印原图与高清无水印视频的工具/浏览器插件。支持一键下载
 
-## 时效
-
-> **时效：2026.9.3 测试有效**  
-> 后期随时可能因豆包改版失效。若非原理被破坏，可提 Issue / PR，我们会跟进适配。
+> [!NOTE]
+> 时效：2026.9.3 测试有效
+>
+> 后期随时可能失效。如果不是因为原理破坏而失效，可以提 PR / Issue，我们会跟进适配。
+>
+> _**安装 👉 [Chrome 扩展（图+视频）](#方式一chrome-扩展完整功能图片--视频) | [油猴脚本（图片）](https://github.com/XiaoYu43002/DoubaoWaterMark-Remover/raw/main/userscript/doubao-nomark-images.user.js)**_
 
 ---
 
