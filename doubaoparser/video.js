@@ -1,46 +1,22 @@
 "use strict";
 
 (() => {
-  const DEBUGGER_VERSION = "1.3";
-  const CHAIN_PATH = "/im/chain/single";
   const DOWNLOAD_CONCURRENCY = 2;
   const MAX_DOWNLOAD_ATTEMPTS = 2;
   const DOWNLOAD_TIMEOUT_MS = 15 * 60 * 1000;
   const MAX_CAPTURED_PER_RESPONSE = 50;
   const CAPTURE_MODE_ALL = "all_opened";
   const CAPTURE_MODE_CURRENT = "current_only";
-  const FALLBACK_HOSTS = ["doubao.com", "snssdk.com", "byteintlapi.com"];
+  const FALLBACK_HOSTS = ["doubao.com", "snssdk.com", "byteintlapi.com", "douyin.com"];
   const VIDEO_EXTENSIONS = new Set(["mp4", "webm", "mov", "mkv"]);
   let _opaqueSaltHex = "";
 
-  const attachedTabs = new Set();
-  const attachingTabs = new Set();
-  const tabErrors = new Map();
   const downloadQueue = [];
   const queuedDownloadKeys = new Set();
   const downloadWaiters = new Map();
   let activeDownloads = 0;
   let captureMode = CAPTURE_MODE_CURRENT;
   let extensionEnabled = true;
-
-  chrome.tabs.onActivated.addListener(async ({ tabId }) => {
-    if (!extensionEnabled) return;
-    if (captureMode === CAPTURE_MODE_CURRENT) await syncTargetTabs();
-    else {
-      const tab = await safeGetTab(tabId);
-      if (tab && isTargetPage(tab.url)) await ensureAttached(tabId);
-    }
-  });
-
-  chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-    if (!extensionEnabled) {
-      if (attachedTabs.has(tabId)) await detachTab(tabId);
-      return;
-    }
-    const url = changeInfo.url || tab.url || "";
-    if (isTargetPage(url) && (captureMode === CAPTURE_MODE_ALL || tab.active)) await ensureAttached(tabId);
-    else if (attachedTabs.has(tabId)) await detachTab(tabId);
-  });
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName !== "local") return;
@@ -51,30 +27,6 @@
     }
     if (changes.extensionEnabled) {
       extensionEnabled = changes.extensionEnabled.newValue !== false;
-    }
-    if (changes.captureMode || changes.extensionEnabled) {
-      syncTargetTabs().catch((error) => console.warn("[Doubao Original Video] 切换捕获状态失败", error));
-    }
-  });
-
-  chrome.tabs.onRemoved.addListener((tabId) => {
-    attachedTabs.delete(tabId);
-    attachingTabs.delete(tabId);
-    tabErrors.delete(tabId);
-  });
-
-  chrome.debugger.onDetach.addListener(({ tabId }, reason) => {
-    if (!tabId) return;
-    attachedTabs.delete(tabId);
-    attachingTabs.delete(tabId);
-    if (reason && reason !== "target_closed") tabErrors.set(tabId, `视频拦截已断开：${reason}`);
-  });
-
-  chrome.debugger.onEvent.addListener((source, method, params) => {
-    if (source.tabId && method === "Fetch.requestPaused" && params) {
-      handlePausedRequest(source.tabId, params).catch((error) => {
-        console.warn("[Doubao Original Video] 请求处理失败", error);
-      });
     }
   });
 
@@ -88,21 +40,19 @@
     }
   });
 
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (!message || typeof message.type !== "string") return false;
 
     if (message.type === "GET_VIDEO_STATUS") {
       (async () => {
         const tab = await activeTab();
-        if (extensionEnabled && tab?.id && isTargetPage(tab.url)) await ensureAttached(tab.id);
+        const onTarget = Boolean(tab && isTargetPage(tab.url));
         sendResponse({
           ok: true,
           enabled: extensionEnabled,
-          target_page: Boolean(tab && isTargetPage(tab.url)),
-          attached: Boolean(extensionEnabled && tab?.id && attachedTabs.has(tab.id)),
-          error: !extensionEnabled
-            ? "扩展已关闭"
-            : (tab?.id ? tabErrors.get(tab.id) || "" : ""),
+          target_page: onTarget,
+          attached: Boolean(extensionEnabled && onTarget),
+          error: !extensionEnabled ? "扩展已关闭" : "",
           capture_mode: captureMode,
           conversation: tab ? conversationMeta(tab) : null
         });
@@ -111,14 +61,20 @@
     }
 
     if (message.type === "RECONNECT_VIDEO") {
+      sendResponse({ ok: true, attached: true });
+      return false;
+    }
+
+    if (message.type === "DOUBAO_VIDEO_FALLBACKS") {
       (async () => {
-        if (!extensionEnabled) throw new Error("请先在 Popup 中启用去水印");
-        const tab = await activeTab();
-        if (!tab?.id || !isTargetPage(tab.url)) throw new Error("请先打开豆包对话页面");
-        tabErrors.delete(tab.id);
-        await detachTab(tab.id);
-        await ensureAttached(tab.id);
-        sendResponse({ ok: true, attached: attachedTabs.has(tab.id) });
+        const tab = sender.tab;
+        if (!tab?.id || !extensionEnabled) {
+          sendResponse({ ok: false, error: "不可用" });
+          return;
+        }
+        const items = Array.isArray(message.items) ? message.items : [];
+        await processFallbackItems(tab, items);
+        sendResponse({ ok: true });
       })().catch((error) => sendResponse({ ok: false, error: error.message }));
       return true;
     }
@@ -190,126 +146,21 @@
     return false;
   });
 
-  async function syncTargetTabs() {
+  async function loadVideoSettings() {
     const stored = await storageGet({
       captureMode: CAPTURE_MODE_CURRENT,
       extensionEnabled: true
     });
     captureMode = stored.captureMode === CAPTURE_MODE_ALL ? CAPTURE_MODE_ALL : CAPTURE_MODE_CURRENT;
     extensionEnabled = stored.extensionEnabled !== false;
-    const tabs = await chrome.tabs.query({});
-    const activeTabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-    const activeId = activeTabs[0]?.id || 0;
-    const desired = new Set(
-      extensionEnabled
-        ? tabs
-          .filter((tab) => tab.id && isTargetPage(tab.url) && (captureMode === CAPTURE_MODE_ALL || tab.id === activeId))
-          .map((tab) => tab.id)
-        : []
-    );
-    await Promise.all(Array.from(attachedTabs).filter((tabId) => !desired.has(tabId)).map(detachTab));
-    await Promise.all(Array.from(desired).map(ensureAttached));
   }
 
-  async function ensureAttached(tabId) {
-    if (!extensionEnabled) return;
-    if (attachedTabs.has(tabId) || attachingTabs.has(tabId)) return;
-    if (captureMode === CAPTURE_MODE_CURRENT && !await isCurrentTab(tabId)) return;
-    attachingTabs.add(tabId);
-    try {
-      await debuggerAttach(tabId);
-      await sendCommand(tabId, "Fetch.enable", {
-        patterns: [{ urlPattern: `*doubao.com${CHAIN_PATH}*`, requestStage: "Response" }]
-      });
-      attachedTabs.add(tabId);
-      tabErrors.delete(tabId);
-      await setBadge(tabId, "ON", "#16a34a");
-    } catch (error) {
-      tabErrors.set(tabId, debuggerErrorMessage(error));
-      await setBadge(tabId, "ERR", "#dc2626");
-    } finally {
-      attachingTabs.delete(tabId);
-    }
-  }
-
-  async function detachTab(tabId) {
-    if (!attachedTabs.has(tabId) && !attachingTabs.has(tabId)) return;
-    await new Promise((resolve) => {
-      chrome.debugger.detach({ tabId }, () => {
-        void chrome.runtime.lastError;
-        resolve();
-      });
-    });
-    attachedTabs.delete(tabId);
-    attachingTabs.delete(tabId);
-    await setBadge(tabId, "", "#71717a");
-  }
-
-  function debuggerAttach(tabId) {
-    return new Promise((resolve, reject) => {
-      chrome.debugger.attach({ tabId }, DEBUGGER_VERSION, () => {
-        if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
-        else resolve();
-      });
-    });
-  }
-
-  function sendCommand(tabId, method, params = {}) {
-    return new Promise((resolve, reject) => {
-      chrome.debugger.sendCommand({ tabId }, method, params, (result) => {
-        if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
-        else resolve(result || {});
-      });
-    });
-  }
-
-  async function handlePausedRequest(tabId, event) {
-    const requestId = event.requestId;
-    const url = event.request?.url || "";
-    if (!isChainUrl(url) || !event.responseStatusCode) {
-      await continueRequest(tabId, requestId);
-      return;
-    }
-
-    let body = "";
-    try {
-      const response = await sendCommand(tabId, "Fetch.getResponseBody", { requestId });
-      body = response.base64Encoded ? decodeBase64Utf8(response.body) : response.body;
-      const tab = await safeGetTab(tabId);
-      if (tab && body) await processChainBody(tab, body);
-    } catch (error) {
-      console.warn("[Doubao Original Video] 聊天响应解析失败", error);
-    } finally {
-      if (body) {
-        await fulfillOriginalResponse(tabId, event, body).catch(() => continueRequest(tabId, requestId));
-      } else {
-        await continueRequest(tabId, requestId).catch(() => {});
-      }
-    }
-  }
-
-  function continueRequest(tabId, requestId) {
-    return sendCommand(tabId, "Fetch.continueRequest", { requestId });
-  }
-
-  async function fulfillOriginalResponse(tabId, event, body) {
-    await sendCommand(tabId, "Fetch.fulfillRequest", {
-      requestId: event.requestId,
-      responseCode: event.responseStatusCode || 200,
-      responsePhrase: event.responseStatusText || "OK",
-      responseHeaders: responseHeadersForBody(event.responseHeaders || [], body),
-      body: encodeBase64Utf8(body)
-    });
-  }
-
-  async function processChainBody(tab, body) {
+  async function processFallbackItems(tab, items) {
     if (!isConcreteChatTab(tab)) return;
     if (captureMode === CAPTURE_MODE_CURRENT && !await isCurrentTab(tab.id)) return;
-    let json;
-    try { json = JSON.parse(body); } catch (_) { return; }
-    const entries = findFallbackEntries(json, body).slice(0, MAX_CAPTURED_PER_RESPONSE);
-    if (!entries.length) return;
     const meta = conversationMeta(tab);
+    const entries = mapFallbackItems(items, meta.chat_id).slice(0, MAX_CAPTURED_PER_RESPONSE);
+    if (!entries.length) return;
     const resolved = await mapConcurrent(entries, 3, async (entry) => {
       const media = await resolveFallbackVideo(entry.url);
       if (!media.url) return null;
@@ -322,6 +173,31 @@
       chrome.tabs.sendMessage(tab.id, { type: "DOUBAO_SESSION_VIDEO", video }, () => void chrome.runtime.lastError);
     }
     notify({ type: "GALLERY_UPDATED", media_type: "video", count });
+  }
+
+  function mapFallbackItems(items, expectedChatId = "") {
+    const results = [];
+    const counters = new Map();
+    const expected = String(expectedChatId || "").trim();
+    for (const item of items) {
+      if (!item || typeof item !== "object") continue;
+      const pageChat = String(item.page_chat_id || "").trim();
+      // 必须带会话 ID，且与当前标签页会话一致，否则会串会话。
+      if (!expected || !pageChat || pageChat !== expected) continue;
+      const url = typeof item.url === "string" ? item.url : "";
+      if (!isAllowedFallbackUrl(url)) continue;
+      const messageId = String(item.message_id || "");
+      const key = messageId || "unscoped";
+      const mediaIndex = counters.get(key) || 0;
+      counters.set(key, mediaIndex + 1);
+      results.push({
+        url,
+        message_id: messageId,
+        media_index: mediaIndex,
+        page_chat_id: pageChat
+      });
+    }
+    return results;
   }
 
   async function persistResolvedVideo(meta, entry, media) {
@@ -794,13 +670,6 @@
     } catch (_) { return false; }
   }
 
-  function isChainUrl(value) {
-    try {
-      const url = new URL(value);
-      return isTargetPage(value) && (url.pathname === CHAIN_PATH || url.pathname === `${CHAIN_PATH}/`);
-    } catch (_) { return false; }
-  }
-
   function isAllowedFallbackUrl(value) {
     try {
       const url = new URL(value);
@@ -888,26 +757,6 @@
     return output;
   }
 
-  function responseHeadersForBody(headers, body) {
-    const blocked = new Set(["content-length", "content-encoding", "transfer-encoding"]);
-    const result = headers.filter((header) => !blocked.has(String(header.name || "").toLowerCase()));
-    result.push({ name: "content-length", value: String(new TextEncoder().encode(body).length) });
-    return result;
-  }
-
-  function encodeBase64Utf8(value) {
-    const bytes = new TextEncoder().encode(value);
-    let binary = "";
-    for (let offset = 0; offset < bytes.length; offset += 0x8000) {
-      binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
-    }
-    return btoa(binary);
-  }
-
-  function decodeBase64Utf8(value) {
-    return new TextDecoder().decode(Uint8Array.from(atob(value), (char) => char.charCodeAt(0)));
-  }
-
   function emptyMedia() {
     return { url: "", poster_url: "", width: 0, height: 0, bitrate: 0, size: 0, format: "mp4", definition: "", video_id: "" };
   }
@@ -961,24 +810,6 @@
     return tab?.id === tabId;
   }
 
-  function safeGetTab(tabId) {
-    return new Promise((resolve) => chrome.tabs.get(tabId, (tab) => resolve(chrome.runtime.lastError ? null : tab)));
-  }
-
-  function setBadge(tabId, text, color) {
-    return Promise.all([
-      chrome.action.setBadgeText({ tabId, text }),
-      chrome.action.setBadgeBackgroundColor({ tabId, color })
-    ]).catch(() => {});
-  }
-
-  function debuggerErrorMessage(error) {
-    const message = error instanceof Error ? error.message : String(error || "未知错误");
-    return /Another debugger|already attached|Cannot access/i.test(message)
-      ? "请关闭当前豆包标签页的普通 F12 或其他视频去水印扩展后重试"
-      : message;
-  }
-
   function storageGet(defaults) {
     return new Promise((resolve) => chrome.storage.local.get(defaults, resolve));
   }
@@ -991,5 +822,5 @@
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  syncTargetTabs().catch((error) => console.warn("[Doubao Original Video] 初始化连接失败", error));
+  loadVideoSettings().catch((error) => console.warn("[Doubao Original Video] 初始化设置失败", error));
 })();

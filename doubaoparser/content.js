@@ -131,14 +131,23 @@
     const objectUrls = new Set();
     let activeType = "image";
 
-    enablePanelDrag(host, header);
+    const drag = enablePanelDrag(host, header);
 
     shadow.getElementById("collapse").addEventListener("click", (event) => {
       panel.classList.toggle("collapsed");
       event.currentTarget.title = panel.classList.contains("collapsed") ? "展开面板" : "收起面板";
+      drag.reanchorAfterCollapse();
     });
-    shadow.getElementById("close").addEventListener("click", () => panel.classList.add("closed"));
-    shadow.getElementById("launcher").addEventListener("click", () => panel.classList.remove("closed"));
+    shadow.getElementById("close").addEventListener("click", () => {
+      panel.classList.add("closed");
+      panel.classList.remove("collapsed");
+      drag.dockEdge();
+    });
+    shadow.getElementById("launcher").addEventListener("click", () => {
+      panel.classList.remove("closed");
+      drag.dockOpen();
+      drag.restorePosition();
+    });
 
     shadow.querySelectorAll(".tab").forEach((button) => button.addEventListener("click", () => {
       activeType = button.dataset.type;
@@ -299,6 +308,8 @@
 
   function enablePanelDrag(host, handle) {
     const POSITION_KEY = "doubaoMediaPanelPosition_v3";
+    const OPEN_CSS = "position:fixed;right:18px;bottom:24px;left:auto;top:auto;z-index:2147483645;pointer-events:auto;";
+    const EDGE_CSS = "position:fixed;right:8px;bottom:24px;left:auto;top:auto;z-index:2147483645;pointer-events:auto;";
     let dragging = false;
     let startX = 0;
     let startY = 0;
@@ -308,6 +319,14 @@
 
     function clamp(value, min, max) {
       return Math.min(max, Math.max(min, value));
+    }
+
+    function dockOpen() {
+      host.style.cssText = OPEN_CSS;
+    }
+
+    function dockEdge() {
+      host.style.cssText = EDGE_CSS;
     }
 
     function applyPosition(left, top) {
@@ -326,12 +345,13 @@
     function restorePosition() {
       try {
         const raw = localStorage.getItem(POSITION_KEY);
-        if (!raw) return;
+        if (!raw) return false;
         const saved = JSON.parse(raw);
-        if (!Number.isFinite(saved?.left) || !Number.isFinite(saved?.top)) return;
+        if (!Number.isFinite(saved?.left) || !Number.isFinite(saved?.top)) return false;
         applyPosition(saved.left, saved.top);
+        return true;
       } catch (_) {
-        // ignore broken saved position
+        return false;
       }
     }
 
@@ -342,6 +362,18 @@
       } catch (_) {
         // ignore quota / private mode failures
       }
+    }
+
+    /** 收缩后高度变矮时保持底边不动，避免关掉后悬浮球漂到画面中间 */
+    function reanchorAfterCollapse() {
+      if (!host.style.left || host.style.left === "auto") return;
+      const rect = host.getBoundingClientRect();
+      const bottomGap = Math.max(8, window.innerHeight - rect.bottom);
+      requestAnimationFrame(() => {
+        const next = host.getBoundingClientRect();
+        const nextTop = Math.max(8, window.innerHeight - bottomGap - next.height);
+        applyPosition(next.left, nextTop);
+      });
     }
 
     handle.addEventListener("pointerdown", (event) => {
@@ -382,6 +414,7 @@
     });
 
     restorePosition();
+    return { dockOpen, dockEdge, restorePosition, reanchorAfterCollapse };
   }
 
   function isAllowedUrl(value) {
@@ -718,6 +751,21 @@
     }
     if (event.data?.type === "DOUBAO_ORIGINAL_IMAGES" && Array.isArray(event.data.images)) {
       handleCapturedImages(event.data.images);
+    }
+    if (event.data?.type === "DOUBAO_VIDEO_FALLBACKS" && Array.isArray(event.data.items) && event.data.items.length) {
+      if (!extensionEnabled || !isConcreteChatPage()) return;
+      const currentChat = extractChatIdFromLocation();
+      const items = event.data.items
+        .slice(0, 50)
+        .filter((item) => {
+          const pageChat = typeof item?.page_chat_id === "string" ? item.page_chat_id.trim() : "";
+          return Boolean(pageChat) && pageChat === currentChat;
+        });
+      if (!items.length) return;
+      sendRuntimeMessage({
+        type: "DOUBAO_VIDEO_FALLBACKS",
+        items
+      }).catch(() => {});
     }
     if (event.data?.type === "DOUBAO_ORIGINAL_STATUS" &&
         event.data.status === "listening" && !records.size) {

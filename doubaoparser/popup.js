@@ -5,7 +5,7 @@ const WECHAT_ID = "suo";
 
 const elements = Object.fromEntries([
   "gallery", "count", "conversation-filter",
-  "clear-all", "video-status", "reconnect-video", "status-chip",
+  "clear-all", "video-status", "status-chip",
   "contact-btn", "media-tabs",
   "toolbar", "select-all", "selected-count", "batch-download", "notice", "loading",
   "empty", "error"
@@ -163,12 +163,12 @@ async function loadCaptureStatus() {
   document.body.dataset.captureState = onTarget ? "connected" : "error";
   renderConnectionStatus({
     onTarget,
-    attached: Boolean(videoStatus?.attached),
+    attached: onTarget,
     error: videoStatus?.error || ""
   });
 }
 
-function renderConnectionStatus({ onTarget, attached, error }) {
+function renderConnectionStatus({ onTarget }) {
   const label = elements.videoStatus.querySelector("b");
   elements.videoStatus.classList.remove("connected", "error");
   if (!onTarget) {
@@ -177,15 +177,9 @@ function renderConnectionStatus({ onTarget, attached, error }) {
     if (label) label.textContent = "未就绪";
     return;
   }
-  if (attached) {
-    elements.statusChip.dataset.state = "connected";
-    elements.videoStatus.classList.add("connected");
-    if (label) label.textContent = "已连接";
-    return;
-  }
-  elements.statusChip.dataset.state = "error";
-  elements.videoStatus.classList.add("error");
-  if (label) label.textContent = error ? "已断开" : "未连接";
+  elements.statusChip.dataset.state = "connected";
+  elements.videoStatus.classList.add("connected");
+  if (label) label.textContent = "已就绪";
 }
 
 async function loadCaptureMode() {
@@ -579,14 +573,6 @@ elements.batchDownload.addEventListener("click", async () => {
 });
 
 elements.clearAll.addEventListener("click", () => { clearAllMediaCache(); });
-
-elements.reconnectVideo.addEventListener("click", async () => {
-  setBusyText(elements.reconnectVideo, "…");
-  const response = await sendMessage({ type: "RECONNECT_VIDEO" });
-  resetButton(elements.reconnectVideo, "重连");
-  await loadCaptureStatus();
-  if (response?.ok === false) showNotice(`连接失败：${response.error}`, true);
-});
 
 elements.contactBtn.addEventListener("click", copyWechatId);
 

@@ -24,6 +24,9 @@ dist/
 build/
 release/
 
+# Local Windows junction (optional alias of doubaoparser); do not commit
+/extension/
+
 # Env / secrets
 .env
 .env.*

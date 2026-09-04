@@ -49,19 +49,20 @@ button, select { font: inherit; }
 .header-center {
   min-width: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 6px;
 }
 
 .app-header h1 {
   margin: 0;
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 700;
-  letter-spacing: .03em;
+  letter-spacing: .02em;
   text-align: center;
-  line-height: 1.2;
-  white-space: nowrap;
+  line-height: 1.25;
+  white-space: normal;
 }
 
 .count-badge {

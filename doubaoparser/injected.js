@@ -7,9 +7,11 @@
   const MESSAGE_IMAGES = "DOUBAO_ORIGINAL_IMAGES";
   const MESSAGE_STATUS = "DOUBAO_ORIGINAL_STATUS";
   const MESSAGE_READY = "DOUBAO_ORIGINAL_BRIDGE_READY";
+  const MESSAGE_VIDEO_FALLBACKS = "DOUBAO_VIDEO_FALLBACKS";
   const records = new Map();
   const rawUrlIndex = new Map();
   const assetKeyIndex = new Map();
+  const videoFallbackKeys = new Set();
   const originalParse = JSON.parse;
   let captureCount = 0;
   let lastFiberScanAt = 0;
@@ -315,6 +317,7 @@
       records.clear();
       rawUrlIndex.clear();
       assetKeyIndex.clear();
+      videoFallbackKeys.clear();
       boundChatId = chatId;
       captureCount = 0;
       window.postMessage({ type: "DOUBAO_CHAT_CHANGED", chat_id: chatId }, location.origin);
@@ -683,6 +686,101 @@
     return rect.right > leftGuard;
   }
 
+  function decodeEscapedUrl(value) {
+    if (typeof value !== "string") return "";
+    return value
+      .replace(/\\u0026/gi, "&")
+      .replace(/\\u003d/gi, "=")
+      .replace(/\\\//g, "/")
+      .replace(/&amp;/gi, "&")
+      .trim();
+  }
+
+  function isAllowedFallbackUrl(value) {
+    try {
+      const url = new URL(decodeEscapedUrl(value));
+      if (url.protocol !== "https:") return false;
+      const host = url.hostname.toLowerCase();
+      return host === "doubao.com" || host.endsWith(".doubao.com") ||
+        host === "snssdk.com" || host.endsWith(".snssdk.com") ||
+        host === "byteintlapi.com" || host.endsWith(".byteintlapi.com") ||
+        host === "douyin.com" || host.endsWith(".douyin.com");
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function directMessageId(value) {
+    for (const key of ["message_id", "msg_id", "messageId", "messageID"]) {
+      const candidate = value?.[key];
+      if ((typeof candidate === "string" || typeof candidate === "number") && String(candidate).trim()) {
+        return String(candidate).trim();
+      }
+    }
+    return "";
+  }
+
+  function collectVideoFallbacks(root, rawText = "", expectedChatId = "") {
+    if (!extensionEnabled || !isConcreteChatPage() || !expectedChatId) return;
+    syncInjectedChat();
+    const currentChatId = getPageChatId();
+    if (expectedChatId !== currentChatId || expectedChatId !== boundChatId) return;
+    const results = [];
+    const localKeys = new Set();
+    const seen = new WeakSet();
+    const stack = [{ value: root, messageId: "" }];
+    let inspected = 0;
+
+    const add = (candidate, messageId = "") => {
+      const url = decodeEscapedUrl(candidate);
+      if (!isAllowedFallbackUrl(url)) return;
+      const key = `${expectedChatId}::${messageId}::${url}`;
+      if (videoFallbackKeys.has(key) || localKeys.has(key)) return;
+      localKeys.add(key);
+      results.push({ url, message_id: String(messageId || ""), page_chat_id: expectedChatId });
+    };
+
+    while (stack.length && inspected < 12000) {
+      const frame = stack.pop();
+      const current = frame.value;
+      if (!current || typeof current !== "object" || seen.has(current)) continue;
+      seen.add(current);
+      inspected += 1;
+      const messageId = directMessageId(current) || frame.messageId;
+      if (!Array.isArray(current) && Object.prototype.hasOwnProperty.call(current, "fallback_api")) {
+        const values = Array.isArray(current.fallback_api) ? current.fallback_api : [current.fallback_api];
+        for (const candidate of values) add(candidate, messageId);
+      }
+      for (const child of Object.values(current)) {
+        if (child && typeof child === "object") stack.push({ value: child, messageId });
+      }
+    }
+
+    if (typeof rawText === "string" && rawText.includes("fallback_api")) {
+      for (const pattern of [/fallback_api\\?"\s*:\s*\\?"(.*?)\\?"/g, /fallback_api\\\\\":\\\\\"(.*?)\\\\\"/g]) {
+        let match;
+        while ((match = pattern.exec(rawText))) add(match[1], "");
+      }
+    }
+
+    if (!results.length) return;
+    for (const item of results) videoFallbackKeys.add(`${expectedChatId}::${item.message_id}::${item.url}`);
+    window.postMessage({ type: MESSAGE_VIDEO_FALLBACKS, items: results }, location.origin);
+  }
+
+  function inspectChainResponseText(text, expectedChatId) {
+    if (typeof text !== "string" || !text.includes("fallback_api")) return;
+    syncInjectedChat();
+    if (!expectedChatId || expectedChatId !== getPageChatId() || expectedChatId !== boundChatId) return;
+    let payload = null;
+    try {
+      payload = originalParse.call(JSON, text);
+    } catch (_) {
+      // 分段文本仍可用正则提取 fallback_api。
+    }
+    collectVideoFallbacks(payload, text, expectedChatId);
+  }
+
   JSON.parse = function doubaoOriginalImageParse(text, reviver) {
     const result = originalParse.call(this, text, reviver);
     try {
@@ -706,11 +804,54 @@
           scanCreationsOnly(result, chatId);
         }
       }
+      // 视频只走 /im/chain/single 的 fetch/XHR（请求发起时绑定 chatId），
+      // 避免 JSON.parse 扫到其它接口/缓存包，把别的会话视频标进当前会话。
     } catch (error) {
-      console.debug("[Doubao Original] 解析图片数据失败", error);
+      console.debug("[Doubao Original] 解析媒体数据失败", error);
     }
     return result;
   };
+
+  const originalFetch = window.fetch;
+  if (typeof originalFetch === "function") {
+    window.fetch = async function doubaoOriginalFetch(...args) {
+      const requestUrl = typeof args[0] === "string" ? args[0] : args[0]?.url || "";
+      const isChainRequest = String(requestUrl).includes("/im/chain/single");
+      const requestChatId = isChainRequest ? getPageChatId() : "";
+      const response = await originalFetch.apply(this, args);
+      try {
+        if (extensionEnabled && isChainRequest && requestChatId) {
+          response.clone().text().then((text) => inspectChainResponseText(text, requestChatId)).catch(() => {});
+        }
+      } catch (_) {}
+      return response;
+    };
+  }
+
+  const XHR = window.XMLHttpRequest;
+  if (XHR?.prototype) {
+    const originalOpen = XHR.prototype.open;
+    XHR.prototype.open = function doubaoOriginalXhrOpen(method, url, ...rest) {
+      this.__doubaoOriginalUrl = String(url || "");
+      if (this.__doubaoOriginalUrl.includes("/im/chain/single")) {
+        this.addEventListener("load", () => {
+          try {
+            if (extensionEnabled && typeof this.responseText === "string") {
+              inspectChainResponseText(this.responseText, this.__doubaoOriginalChatId);
+            }
+          } catch (_) {}
+        }, { once: true });
+      }
+      return originalOpen.call(this, method, url, ...rest);
+    };
+    const originalSend = XHR.prototype.send;
+    XHR.prototype.send = function doubaoOriginalXhrSend(...args) {
+      if (this.__doubaoOriginalUrl?.includes("/im/chain/single")) {
+        this.__doubaoOriginalChatId = getPageChatId();
+      }
+      return originalSend.apply(this, args);
+    };
+  }
 
   window.addEventListener("message", (event) => {
     if (event.source !== window || event.origin !== location.origin) return;
