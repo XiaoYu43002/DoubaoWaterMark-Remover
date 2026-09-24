@@ -111,15 +111,8 @@ function activeChatId() {
 
 function belongsToSelectedConversation(item, selectedId) {
   if (!selectedId || selectedId === "all") return true;
-  if (conversationId(item) === selectedId) return true;
-  if (selectedId === activeConversationId) {
-    const selectedChat = activeChatId();
-    const itemChat = conversationChatId(item);
-    // 仅兼容旧记录：conversation_id 不一致时不靠 chatId 兜底，避免刷新后串会话。
-    if (conversationId(item) !== "legacy" && conversationId(item) !== selectedId) return false;
-    return Boolean(selectedChat && itemChat && selectedChat === itemChat && selectedChat !== "home");
-  }
-  return false;
+  // 严格按 conversation_id；不再用 chatId 兜底，避免其它会话脏数据混进当前筛选。
+  return conversationId(item) === selectedId;
 }
 
 function visibleMedia() {

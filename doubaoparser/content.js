@@ -69,6 +69,19 @@
     }, 2800);
   }
 
+  function sessionImageRecords() {
+    const currentChat = extractChatIdFromLocation();
+    if (!currentChat || !isConcreteChatId(currentChat)) return [];
+    return Array.from(records.values()).filter((record) => {
+      if (!record) return false;
+      if (!(record.image_ori_raw_url || record.image_ori_url || record.best_url)) return false;
+      // 必须带当前会话 chatId；缺字段或其它会话一律不展示。
+      if (record.conversation_chat_id !== currentChat && record.page_chat_id !== currentChat) return false;
+      if (record.conversation_id && record.conversation_id !== sessionConversationId) return false;
+      return true;
+    });
+  }
+
   function createMediaPanel() {
     const host = document.createElement("div");
     host.id = "doubao-original-media-panel";
@@ -160,7 +173,7 @@
 
     downloadAll.addEventListener("click", async () => {
       const items = activeType === "image"
-        ? Array.from(visibleImageIds).map((imageId) => records.get(imageId)).filter(Boolean)
+        ? sessionImageRecords()
         : Array.from(sessionVideos.values());
       if (!items.length) return;
       downloadAll.disabled = true;
@@ -235,9 +248,7 @@
       for (const url of objectUrls) URL.revokeObjectURL(url);
       objectUrls.clear();
       list.replaceChildren();
-      const images = Array.from(visibleImageIds)
-        .map((imageId) => records.get(imageId))
-        .filter(Boolean);
+      const images = sessionImageRecords();
       const videos = Array.from(sessionVideos.values());
       shadow.getElementById("image-count").textContent = String(images.length);
       shadow.getElementById("video-count").textContent = String(videos.length);
@@ -499,8 +510,8 @@
     urlIndex.clear();
     mediaPanel.reset();
     setStatus("listening");
-    sessionRescanUntil = Date.now() + 2200;
-    requestFiberScan(true, 450);
+    sessionRescanUntil = Date.now() + 8000;
+    requestFiberScan(true, 80);
     scheduleConversationTitleSync();
   }
 
@@ -658,8 +669,10 @@
     for (const value of candidates) {
       const normalized = normalizeUrl(value);
       const key = pathKey(value);
+      const assetKey = assetKeyFromUrl(value);
       const id = (normalized && urlIndex.get(`url:${normalized}`)) ||
-        (key && urlIndex.get(`path:${key}`));
+        (key && urlIndex.get(`path:${key}`)) ||
+        (assetKey && urlIndex.get(`asset:${assetKey}`));
       if (id && records.has(id)) {
         imageRecords.set(img, id);
         return records.get(id);
@@ -689,7 +702,11 @@
     const capturedForConversation = sessionConversationId;
     const currentChat = extractChatIdFromLocation();
     const valid = values.slice(0, 200)
-      .filter((raw) => !(raw?.page_chat_id && raw.page_chat_id !== currentChat))
+      .filter((raw) => {
+        const pageChat = typeof raw?.page_chat_id === "string" ? raw.page_chat_id.trim() : "";
+        // 必须带当前会话 ID，拒绝 pending / 空 / 其它会话，避免冲进「未命名会话」。
+        return Boolean(pageChat) && pageChat === currentChat;
+      })
       .map(validateRecord)
       .filter(Boolean);
     if (!valid.length) return;
@@ -708,11 +725,24 @@
       }
     }
     setStatus("loading");
-    scheduleEnhance();
+    scheduleEnhance(0);
     mediaPanel.refresh();
+    // 多图流式后两张常晚到：入库后继续补扫一段时间。
+    sessionRescanUntil = Math.max(sessionRescanUntil, Date.now() + 5000);
+    requestFiberScan(true, 200);
+    setTimeout(() => {
+      if (Date.now() < sessionRescanUntil) requestFiberScan(true, 0);
+    }, 800);
+    setTimeout(() => {
+      if (Date.now() < sessionRescanUntil) {
+        requestFiberScan(true, 0);
+        scheduleEnhance(0);
+      }
+    }, 1800);
 
     if (!changed.length) {
       setStatus("captured");
+      scheduleEnhance(0);
       mediaPanel.refresh();
       return;
     }
@@ -735,6 +765,7 @@
       }
       setStatus("captured");
     }
+    scheduleEnhance(0);
     mediaPanel.refresh();
   }
 
@@ -743,9 +774,9 @@
     if (event.data?.type === "DOUBAO_CHAT_CHANGED") {
       syncPageSession();
       if (extensionEnabled && isConcreteChatPage()) {
-        sessionRescanUntil = Date.now() + 4000;
-        requestFiberScan(true, 60);
-        scheduleEnhance(30);
+        sessionRescanUntil = Date.now() + 8000;
+        requestFiberScan(true, 30);
+        scheduleEnhance(20);
       }
       return;
     }
@@ -795,25 +826,28 @@
   function scheduleEnhance(delay = 35) {
     if (!extensionEnabled) return;
     syncPageSession();
-    if (enhanceScheduled) return;
+    // 允许用更短 delay 抢跑，避免「看板已有图、会话内还卡在水印」时被旧定时器拖住。
+    clearTimeout(enhanceTimer);
     enhanceScheduled = true;
     enhanceTimer = setTimeout(() => {
       enhanceScheduled = false;
       enhanceTimer = null;
       enhanceImages();
-    }, delay);
+    }, Math.max(0, delay));
   }
 
   function requestFiberScan(force = false, delay = 120) {
     if (!extensionEnabled) return;
     if (!isConcreteChatPage()) return;
-    if (!force && (fiberScanTimer || Date.now() - lastFiberScanAt < 1800)) return;
+    const minGap = force ? 100 : 700;
+    if (!force && (fiberScanTimer || Date.now() - lastFiberScanAt < minGap)) return;
+    if (force && Date.now() - lastFiberScanAt < 80 && fiberScanTimer) return;
     clearTimeout(fiberScanTimer);
     fiberScanTimer = setTimeout(() => {
       fiberScanTimer = null;
       lastFiberScanAt = Date.now();
       window.postMessage({ type: "DOUBAO_ORIGINAL_FIBER_SCAN", force }, location.origin);
-    }, delay);
+    }, force ? Math.min(delay, 40) : delay);
   }
 
   function enhanceImages() {
@@ -861,7 +895,11 @@
     nextVisibleIds.forEach((imageId) => visibleImageIds.add(imageId));
     if (visibilityChanged || metaUpdated) mediaPanel.refresh();
 
-    if (unmatched) requestFiberScan(false, 120);
+    // 页面已出图但尚未匹配：只要还有未匹配图就强制 Fiber，避免四图只扫到前两张。
+    if (unmatched) {
+      sessionRescanUntil = Math.max(sessionRescanUntil, Date.now() + 5000);
+      requestFiberScan(true, 40);
+    }
   }
 
   function isConversationMediaImage(img) {

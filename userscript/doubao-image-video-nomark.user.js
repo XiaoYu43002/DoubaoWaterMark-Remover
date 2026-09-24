@@ -468,6 +468,11 @@
               continue;
             }
             const changed = mergeRecord(candidate);
+            if (candidate.image_ori_raw_url && item?.image) {
+              upgradePageImageData(item.image, candidate.image_ori_raw_url);
+            } else if (candidate.image_ori_raw_url) {
+              upgradePageImageData(item, candidate.image_ori_raw_url);
+            }
             if (changed) {
               found.push(changed);
               budget.left -= 1;
@@ -495,8 +500,13 @@
       // 大包/历史同步常含其它会话 ID 或分页字段，不能无会话标记入库。
       if (text.length > 180000) return false;
       if (/message_list|has_more|conversation_list|history_message|recent_chat/i.test(text)) return false;
-      const foreignIds = (text.match(/\d{17,20}/g) || []).filter((id) => id !== chatId);
-      return foreignIds.length === 0;
+      // 流式出图包常带 message_id（同为长数字），不能再把任意 17–20 位数字当「外来会话」。
+      const idPattern = /"(?:conversation_id|conversationId|chat_id|chatId)"\s*:\s*"?([a-zA-Z0-9_-]{10,})"?/g;
+      let match;
+      while ((match = idPattern.exec(text))) {
+        if (match[1] && match[1] !== chatId) return false;
+      }
+      return true;
     }
   
     function scanObject(root, maxInspected = 9000, options = {}) {

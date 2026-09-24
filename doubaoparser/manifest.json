@@ -3,7 +3,7 @@
   "name": "豆包AI生成图片与视频无感去水印",
   "short_name": "豆包无感去水印",
   "description": "在豆包对话页一键获取无水印原图与高清无水印视频，并支持一键下载和全部图片视频管理。",
-  "version": "2.6.2",
+  "version": "2.7.1",
   "minimum_chrome_version": "111",
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"

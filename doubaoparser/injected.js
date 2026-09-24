@@ -282,19 +282,15 @@
     return quality(merged) > quality(previous) ? merged : null;
   }
 
+  function isConcreteChatId(chatId) {
+    const id = String(chatId || "").trim();
+    if (!id || id.length < 10) return false;
+    if (/^(home|chat|conversation|new|index|explore|discover|bot|agent|pending)$/i.test(id)) return false;
+    return /^[a-zA-Z0-9_-]+$/.test(id);
+  }
+
   function isConcreteChatPage() {
-    try {
-      const url = new URL(location.href);
-      const pathMatch = url.pathname.match(/\/(?:chat|conversation)\/([^/?#]+)/i);
-      const queryId = url.searchParams.get("conversation_id") || url.searchParams.get("conversationId") ||
-        url.searchParams.get("chat_id") || url.searchParams.get("chatId");
-      const id = String(queryId || pathMatch?.[1] || "").trim();
-      if (!id || id.length < 10) return false;
-      if (/^(home|chat|conversation|new|index|explore|discover|bot|agent)$/i.test(id)) return false;
-      return /^[a-zA-Z0-9_-]+$/.test(id);
-    } catch (_) {
-      return false;
-    }
+    return isConcreteChatId(getPageChatId());
   }
 
   function getPageChatId() {
@@ -309,7 +305,12 @@
     }
   }
 
+  // 新建对话时 URL 常晚于首包；不再做跨包 pending 缓存，避免把其它接口 creations 冲进新会话。
   let boundChatId = getPageChatId();
+
+  function isConcreteBoundChat() {
+    return isConcreteChatId(boundChatId);
+  }
 
   function syncInjectedChat() {
     const chatId = getPageChatId();
@@ -321,7 +322,7 @@
       boundChatId = chatId;
       captureCount = 0;
       window.postMessage({ type: "DOUBAO_CHAT_CHANGED", chat_id: chatId }, location.origin);
-      // 从首页进入新建会话时，URL 往往晚于首包出图；切到真实 chatId 后立刻补扫入库。
+      // 从首页进入新建会话时，URL 落地后立刻补扫当前页已渲染的图。
       if (isConcreteChatPage()) queueReactFiberScan(true);
     }
     return chatId;
@@ -347,6 +348,33 @@
       } catch (_) {}
     }
     return false;
+  }
+
+  function objectHasForeignChat(obj, chatId) {
+    if (!obj || typeof obj !== "object" || !chatId) return false;
+    const keys = [
+      "conversation_id", "conversationId", "chat_id", "chatId", "cid",
+      "conversation_chat_id", "bot_conversation_id"
+    ];
+    for (const key of keys) {
+      try {
+        const raw = obj[key];
+        if (raw == null || raw === "") continue;
+        const value = String(raw).trim();
+        if (value.length < 10 || value === chatId) continue;
+        if (/^(home|chat|conversation|new|index|explore|discover|bot|agent|pending)$/i.test(value)) continue;
+        if (/^[a-zA-Z0-9_-]+$/.test(value)) return true;
+      } catch (_) {}
+    }
+    return false;
+  }
+
+  function resolveChildScope(parentInScope, child, chatId, requireChatScope) {
+    if (!requireChatScope) return parentInScope;
+    if (objectMatchesChat(child, chatId)) return true;
+    // 子节点显式属于其它会话时，切断继承，避免「当前会话节点下挂了全局缓存」整包入库。
+    if (objectHasForeignChat(child, chatId)) return false;
+    return parentInScope;
   }
 
   function treeMentionsChat(root, chatId, budget = 2500) {
@@ -381,7 +409,13 @@
     syncInjectedChat();
     if (!images.length || !isConcreteChatPage()) return;
     const chatId = boundChatId;
-    const scoped = images.filter((item) => !item.page_chat_id || item.page_chat_id === chatId);
+    const scoped = images.filter((item) => {
+      if (!item || typeof item !== "object") return false;
+      const pageChat = String(item.page_chat_id || "").trim();
+      // 必须绑定当前会话；拒绝 pending / 空 / 其它会话。
+      if (!pageChat || pageChat === "pending" || pageChat !== chatId) return false;
+      return true;
+    });
     if (!scoped.length) return;
     window.postMessage({ type: MESSAGE_IMAGES, images: scoped }, location.origin);
     window.postMessage({
@@ -390,6 +424,22 @@
       total: records.size,
       capture_count: captureCount
     }, location.origin);
+  }
+
+  function candidateMatchesAssetKeys(candidate, keys) {
+    // 空集合表示「必须命中可见图」；不能当成匹配全部，否则刷新大包会串会话。
+    if (!keys || !keys.size) return false;
+    for (const url of [
+      candidate?.image_ori_raw_url,
+      candidate?.image_ori_url,
+      candidate?.image_preview_url,
+      candidate?.image_thumb_url,
+      candidate?.best_url
+    ]) {
+      const key = assetKeyFromUrl(url);
+      if (key && keys.has(key)) return true;
+    }
+    return false;
   }
 
   function collectCreationImages(node, parentKey, chatId, found, budget = { left: 120 }) {
@@ -413,6 +463,11 @@
             continue;
           }
           const changed = mergeRecord(candidate);
+          if (candidate.image_ori_raw_url && item?.image) {
+            upgradePageImageData(item.image, candidate.image_ori_raw_url);
+          } else if (candidate.image_ori_raw_url) {
+            upgradePageImageData(item, candidate.image_ori_raw_url);
+          }
           if (changed) {
             found.push(changed);
             budget.left -= 1;
@@ -429,19 +484,25 @@
 
   function scanCreationsOnly(root, chatId) {
     const found = [];
-    collectCreationImages(root, "", chatId, found);
-    postImages(found.slice(0, 200));
+    collectCreationImages(root, "", chatId, found, { left: 48 });
+    postImages(found.slice(0, 48));
     return found.length;
   }
 
   function canPersistUnscopedPayload(text, chatId) {
     if (!text || !chatId) return false;
     if (!text.includes("creations") || !text.includes("image_ori_raw")) return false;
-    // 大包/历史同步常含其它会话 ID 或分页字段，不能无会话标记入库。
+    // 仅按「是否属于当前会话」判断：历史列表大包拒绝；显式其它会话字段拒绝。
     if (text.length > 180000) return false;
-    if (/message_list|has_more|conversation_list|history_message|recent_chat/i.test(text)) return false;
-    const foreignIds = (text.match(/\d{17,20}/g) || []).filter((id) => id !== chatId);
-    return foreignIds.length === 0;
+    if (/message_list|has_more|conversation_list|history_message|recent_chat|chat_list|sidebar/i.test(text)) {
+      return false;
+    }
+    const idPattern = /"(?:conversation_id|conversationId|chat_id|chatId)"\s*:\s*"?([a-zA-Z0-9_-]{10,})"?/g;
+    let match;
+    while ((match = idPattern.exec(text))) {
+      if (match[1] && match[1] !== chatId) return false;
+    }
+    return true;
   }
 
   function scanObject(root, maxInspected = 9000, options = {}) {
@@ -451,8 +512,10 @@
     const chatId = boundChatId;
     const persist = options.persist !== false;
     const forcePost = Boolean(options.forcePost);
+    const matchAssetKeys = options.matchAssetKeys instanceof Set ? options.matchAssetKeys : null;
+    const requireAssetMatch = matchAssetKeys instanceof Set;
     // 响应里必须能定位到当前会话 ID，才允许入库；否则只可能是其它接口的图。
-    const wantScope = options.requireChatScope !== false && Boolean(chatId) && persist;
+    const wantScope = options.requireChatScope !== false && Boolean(chatId) && persist && isConcreteChatId(chatId);
     const hasChatMarker = wantScope ? treeMentionsChat(root, chatId) : false;
     if (persist && wantScope && !hasChatMarker) return 0;
     const requireChatScope = wantScope && hasChatMarker;
@@ -468,7 +531,10 @@
       visited.add(current);
       inspected += 1;
 
-      const inScope = currentFrame.inScope || objectMatchesChat(current, chatId);
+      let inScope = currentFrame.inScope || objectMatchesChat(current, chatId);
+      if (requireChatScope && objectHasForeignChat(current, chatId) && !objectMatchesChat(current, chatId)) {
+        inScope = false;
+      }
 
       // 优先从 creations 数组提取真正的 AI 生成图。
       if (inScope && Array.isArray(current)) {
@@ -476,6 +542,16 @@
         for (const item of current) {
           const candidate = pickCreationImage(item);
           if (!candidate) continue;
+          if (requireAssetMatch && !candidateMatchesAssetKeys(candidate, matchAssetKeys)) continue;
+          if (!persist && !forcePost) {
+            if (candidate.image_ori_raw_url && item?.image) {
+              upgradePageImageData(item.image, candidate.image_ori_raw_url);
+            } else if (candidate.image_ori_raw_url) {
+              upgradePageImageData(item, candidate.image_ori_raw_url);
+            }
+            creationHits += 1;
+            continue;
+          }
           candidate.page_chat_id = chatId;
           const existingId = findExistingIdForCandidate(candidate);
           if (existingId) {
@@ -490,10 +566,8 @@
             continue;
           }
           const changed = mergeRecord(candidate);
-          if (persist) {
-            if (changed) found.push(changed);
-            else if (forcePost) found.push(records.get(candidate.image_id) || candidate);
-          }
+          if (changed) found.push(changed);
+          else if (forcePost) found.push(records.get(candidate.image_id) || candidate);
           if (candidate.image_ori_raw_url && item?.image) {
             upgradePageImageData(item.image, candidate.image_ori_raw_url);
           } else if (candidate.image_ori_raw_url) {
@@ -506,15 +580,17 @@
 
       if (inScope) {
         const candidate = pickRecord(current);
-        if (candidate) {
-          candidate.page_chat_id = chatId;
-          const changed = mergeRecord(candidate);
-          if (persist) {
+        if (candidate && !(requireAssetMatch && !candidateMatchesAssetKeys(candidate, matchAssetKeys))) {
+          if (!persist && !forcePost) {
+            if (candidate.image_ori_raw_url) upgradePageImageData(current, candidate.image_ori_raw_url);
+          } else {
+            candidate.page_chat_id = chatId;
+            const changed = mergeRecord(candidate);
             if (changed) found.push(changed);
             else if (forcePost) found.push(records.get(candidate.image_id) || candidate);
-          }
-          if (candidate.image_ori_raw_url) {
-            upgradePageImageData(current, candidate.image_ori_raw_url);
+            if (candidate.image_ori_raw_url) {
+              upgradePageImageData(current, candidate.image_ori_raw_url);
+            }
           }
         }
       }
@@ -534,8 +610,12 @@
           // 页面对象的个别 getter 可能抛错，忽略该字段。
         }
       }
-      for (const value of fallback) stack.push({ value, inScope });
-      for (const value of priority) stack.push({ value, inScope });
+      for (const value of fallback) {
+        stack.push({ value, inScope: resolveChildScope(inScope, value, chatId, requireChatScope) });
+      }
+      for (const value of priority) {
+        stack.push({ value, inScope: resolveChildScope(inScope, value, chatId, requireChatScope) });
+      }
     }
 
     if (persist) postImages(found.slice(0, 200));
@@ -567,24 +647,45 @@
     return isLikelyConversationImage(img) && !isComposerOrInputImage(img);
   }
 
+  function collectImgAssetKeys(img) {
+    const keys = new Set();
+    const add = (value) => {
+      if (typeof value !== "string" || !value) return;
+      for (const part of value.split(/[\s,]+/)) {
+        if (!part || part.endsWith("w") || /^\d+(\.\d+)?x?$/i.test(part)) continue;
+        const key = assetKeyFromUrl(part);
+        if (key) keys.add(key);
+      }
+    };
+    add(img.currentSrc);
+    add(img.src);
+    add(img.getAttribute("src"));
+    add(img.getAttribute("srcset"));
+    return keys;
+  }
+
   function scanReactFiber(force = false) {
     if (!isConcreteChatPage()) return;
     syncInjectedChat();
-    if (!force && Date.now() - lastFiberScanAt < 2000) return;
+    // 强制补扫（页面已出现未匹配图）用更短间隔，避免新对话等 2–3 秒才去水印。
+    const minGap = force ? 80 : 700;
+    if (Date.now() - lastFiberScanAt < minGap) return;
     lastFiberScanAt = Date.now();
 
     const images = Array.from(document.querySelectorAll('img[src*="byteimg.com"], img[srcset*="byteimg.com"]'))
-      .filter(isLikelyConversationImage);
+      .filter(isLikelyConversationImage)
+      .slice(0, 24);
     const scannedReactValues = new WeakSet();
     let scannedTargets = 0;
 
     for (const img of images) {
-      if (scannedTargets >= 10) break;
       let node = img;
       let imageScanned = false;
+      let perImageScans = 0;
       const allowPersist = shouldPersistFiberImage(img);
+      const matchAssetKeys = collectImgAssetKeys(img);
 
-      // Fiber 负责替换水印；仅会话主区图片入库，输入框参考图不入库。
+      // Fiber 负责替换水印；仅把「与当前 img 同源」的 creations 入库，避免父级 props 里串进其它会话。
       for (let domLevel = 0; node && domLevel < 2; domLevel += 1, node = node.parentElement) {
         let propertyNames = [];
         try {
@@ -605,18 +706,23 @@
           if (!reactValue || typeof reactValue !== "object" || scannedReactValues.has(reactValue)) continue;
           scannedReactValues.add(reactValue);
           scannedTargets += 1;
+          perImageScans += 1;
+          if (perImageScans > 4) break;
 
-          // 会话主区图片：替换水印的同时入库。新对话流式包常不含 chatId，仅靠 JSON.parse 会漏检。
-          const fiberScanOpts = allowPersist
-            ? { persist: true, requireChatScope: false, forcePost: false }
-            : { persist: false, requireChatScope: false };
+          const fiberScanOpts = {
+            persist: allowPersist && matchAssetKeys.size > 0,
+            requireChatScope: false,
+            matchAssetKeys,
+            forcePost: false
+          };
           let foundCount = 0;
           if (name.startsWith("__reactProps$")) {
             foundCount = scanObject(reactValue, 320, fiberScanOpts);
           } else {
             let fiber = reactValue;
             const visitedFibers = new WeakSet();
-            for (let fiberLevel = 0; fiber && fiberLevel < 4; fiberLevel += 1) {
+            // 只向上两层，降低扫到会话列表/缓存 props 的概率。
+            for (let fiberLevel = 0; fiber && fiberLevel < 2; fiberLevel += 1) {
               if (typeof fiber !== "object" || visitedFibers.has(fiber)) break;
               visitedFibers.add(fiber);
               if (fiber.memoizedProps) {
@@ -633,15 +739,18 @@
             break;
           }
         }
-        if (imageScanned) break;
+        if (imageScanned || perImageScans > 4) break;
       }
     }
 
-    if (records.size) postImages(Array.from(records.values()));
+    // 只依赖 scanObject/scanCreationsOnly 已 post 的增量；不要把内存全量再冲一遍。
+    const scopedCount = Array.from(records.values()).filter((item) =>
+      item && String(item.page_chat_id || "") === boundChatId
+    ).length;
     window.postMessage({
       type: MESSAGE_STATUS,
-      status: records.size ? "captured" : "listening",
-      total: records.size,
+      status: scopedCount ? "captured" : "listening",
+      total: scopedCount,
       capture_count: captureCount,
       fiber_scanned: scannedTargets
     }, location.origin);
@@ -649,17 +758,27 @@
 
   function queueReactFiberScan(force = false) {
     pendingFiberForce = pendingFiberForce || force;
-    if (fiberIdleHandle !== null) return;
+    if (fiberIdleHandle !== null) {
+      if (!force) return;
+      clearTimeout(fiberIdleHandle);
+      if (typeof cancelIdleCallback === "function") {
+        try { cancelIdleCallback(fiberIdleHandle); } catch (_) {}
+      }
+      fiberIdleHandle = null;
+    }
     const run = () => {
       fiberIdleHandle = null;
       const shouldForce = pendingFiberForce;
       pendingFiberForce = false;
       scanReactFiber(shouldForce);
     };
-    if (typeof requestIdleCallback === "function") {
-      fiberIdleHandle = requestIdleCallback(run, { timeout: 650 });
+    // 强制扫描尽快执行；空闲扫描可稍等，避免拖慢页面。
+    if (pendingFiberForce) {
+      fiberIdleHandle = setTimeout(run, 0);
+    } else if (typeof requestIdleCallback === "function") {
+      fiberIdleHandle = requestIdleCallback(run, { timeout: 320 });
     } else {
-      fiberIdleHandle = setTimeout(run, 80);
+      fiberIdleHandle = setTimeout(run, 40);
     }
   }
 
@@ -769,6 +888,7 @@
   }
 
   function inspectChainResponseText(text, expectedChatId) {
+    // 与油猴一致：chain 只提取视频 fallback，不在此扫图片（避免历史大包串会话）。
     if (typeof text !== "string" || !text.includes("fallback_api")) return;
     syncInjectedChat();
     if (!expectedChatId || expectedChatId !== getPageChatId() || expectedChatId !== boundChatId) return;
@@ -787,10 +907,10 @@
       if (!extensionEnabled) return result;
       syncInjectedChat();
       const chatId = boundChatId;
-      // 不主动请求接口：只拦截页面自己解析的 JSON。
-      // 历史会话响应通常自带 chatId；新建会话流式出图包常不含 chatId，但仍在当前具体会话页。
+      // 严格按会话归属入库：有当前会话标记 → 只扫属于该会话的子树；
+      // 无标记的流式小包 → 仅当不含其它会话字段时，记入当前 boundChatId。
       if (
-        isConcreteChatPage() &&
+        isConcreteBoundChat() &&
         chatId &&
         typeof text === "string" &&
         text.includes("image_ori_raw") &&
@@ -804,8 +924,6 @@
           scanCreationsOnly(result, chatId);
         }
       }
-      // 视频只走 /im/chain/single 的 fetch/XHR（请求发起时绑定 chatId），
-      // 避免 JSON.parse 扫到其它接口/缓存包，把别的会话视频标进当前会话。
     } catch (error) {
       console.debug("[Doubao Original] 解析媒体数据失败", error);
     }
@@ -861,7 +979,7 @@
     }
     if (event.data?.type === MESSAGE_READY) {
       syncInjectedChat();
-      if (extensionEnabled) postImages(Array.from(records.values()));
+      // 不在 ready 时全量回传 records，避免把上一轮残留冲进页面。
       window.postMessage({
         type: MESSAGE_STATUS,
         status: records.size ? "captured" : "listening",

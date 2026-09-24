@@ -1,7 +1,7 @@
 # 豆包无水印图片和视频一键下载
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![Version](https://img.shields.io/badge/version-2.6.2-blue.svg)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.7.1-blue.svg)](./CHANGELOG.md)
 [![GitHub stars](https://img.shields.io/github/stars/XiaoYu43002/DoubaoWaterMark-Remover)](https://github.com/XiaoYu43002/DoubaoWaterMark-Remover/stargazers)
 
 在豆包对话页一键获取无水印原图与高清无水印视频的工具/浏览器插件。支持一键下载
@@ -11,7 +11,7 @@
 >
 > 后期随时可能失效。如果不是因为原理破坏而失效，可以提 PR / Issue，我们会跟进适配。
 >
-> _**安装 👉 [Chrome 扩展（图+视频）](#方式一chrome-扩展完整功能图片--视频) | [油猴脚本（图片）](https://github.com/XiaoYu43002/DoubaoWaterMark-Remover/raw/main/userscript/doubao-nomark-images.user.js)**_
+> _**安装 👉 [Chrome 网上应用店](https://chromewebstore.google.com/detail/%E8%B1%86%E5%8C%85ai%E7%94%9F%E6%88%90%E5%9B%BE%E7%89%87%E4%B8%8E%E8%A7%86%E9%A2%91%E6%97%A0%E6%84%9F%E5%8E%BB%E6%B0%B4%E5%8D%B0/mopkgmfclnpcmhdbcincpcgbdmbhnmgh) | [Greasy Fork 油猴脚本](https://greasyfork.org/zh-CN/scripts/594269-%E8%B1%86%E5%8C%85%E5%9B%BE%E7%89%87%E8%A7%86%E9%A2%91%E5%8E%BB%E6%B0%B4%E5%8D%B0)**_
 
 ---
 
@@ -19,15 +19,20 @@
 
 ### 方式一：Chrome 扩展（完整功能：图片 + 视频）
 
+**推荐（一键安装）：** 前往 [Chrome 网上应用店](https://chromewebstore.google.com/detail/%E8%B1%86%E5%8C%85ai%E7%94%9F%E6%88%90%E5%9B%BE%E7%89%87%E4%B8%8E%E8%A7%86%E9%A2%91%E6%97%A0%E6%84%9F%E5%8E%BB%E6%B0%B4%E5%8D%B0/mopkgmfclnpcmhdbcincpcgbdmbhnmgh) 点击 **「添加至 Chrome」**。
+
+**本地开发 / 未上架环境加载：**
+
 1. 打开本仓库，点击 **Code → Download ZIP**，或 `git clone` 后解压到固定目录  
 2. 打开 Chrome → `chrome://extensions/` → 开启 **开发者模式**  
 3. 点击 **「加载已解压的扩展程序」**，选择仓库里的 **`doubaoparser`** 文件夹（本地若建了 `extension` 联接亦可选它）  
-4. 确认名称为 `豆包AI生成图片与视频无感去水印`、版本 `2.6.2`  
+4. 确认名称为 `豆包AI生成图片与视频无感去水印`、版本 `2.7.1`  
 5. 打开 [豆包](https://www.doubao.com)，按 `Ctrl + Shift + R` 强制刷新  
 
 若曾安装其它豆包去水印类扩展，建议先禁用以免冲突。更细的回归与排错见 [docs/testing.md](./docs/testing.md)。
 
-**上架 Chrome 网上应用店**：
+**上架 / 打包（维护者）：**
+- 商店页：[豆包AI生成图片与视频无感去水印](https://chromewebstore.google.com/detail/%E8%B1%86%E5%8C%85ai%E7%94%9F%E6%88%90%E5%9B%BE%E7%89%87%E4%B8%8E%E8%A7%86%E9%A2%91%E6%97%A0%E6%84%9F%E5%8E%BB%E6%B0%B4%E5%8D%B0/mopkgmfclnpcmhdbcincpcgbdmbhnmgh)
 - 提交流程：[store/CHROME_WEB_STORE.md](./store/CHROME_WEB_STORE.md)
 - **商店说明文案（直接复制）**：[store/LISTING.md](./store/LISTING.md)
 - 打包命令：
@@ -36,20 +41,18 @@
 powershell -ExecutionPolicy Bypass -File tools/pack-chrome-extension.ps1
 ```
 
-（审核通过后，将在此补充商店一键安装链接。）
-
-### 方式二：油猴脚本 / Greasy Fork（目前仅图片）
+### 方式二：油猴脚本 / Greasy Fork（图片 + 视频）
 
 视频无水印与图片一样在页面内拦截解析，**油猴与 Chrome 扩展均可使用图+视频**（Chrome 扩展另有 Popup 资源库）。
 
 **快速安装：**
 
 1. 先安装 [Tampermonkey](https://www.tampermonkey.net/)（或其它油猴管理器）  
-2. 打开脚本文件安装：  
-   [doubao-nomark-images.user.js](https://github.com/XiaoYu43002/DoubaoWaterMark-Remover/raw/main/userscript/doubao-nomark-images.user.js)  
+2. 打开 Greasy Fork 安装页一键安装：  
+   [豆包图片视频去水印（Greasy Fork）](https://greasyfork.org/zh-CN/scripts/594269-%E8%B1%86%E5%8C%85%E5%9B%BE%E7%89%87%E8%A7%86%E9%A2%91%E5%8E%BB%E6%B0%B4%E5%8D%B0)  
 3. 在 Tampermonkey 中确认启用，打开豆包对话页并刷新  
 
-发布到 [Greasy Fork](https://greasyfork.org/) 后，可将上面的链接替换为 Greasy Fork 一键安装页。
+也可从仓库原始文件安装：[userscript 目录](https://github.com/XiaoYu43002/DoubaoWaterMark-Remover/tree/main/userscript)。
 
 ---
 
