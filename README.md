@@ -21,19 +21,7 @@
 
 **Chrome扩展市场一键安装：** 前往 [Chrome 网上应用店](https://chromewebstore.google.com/detail/%E8%B1%86%E5%8C%85ai%E7%94%9F%E6%88%90%E5%9B%BE%E7%89%87%E4%B8%8E%E8%A7%86%E9%A2%91%E6%97%A0%E6%84%9F%E5%8E%BB%E6%B0%B4%E5%8D%B0/mopkgmfclnpcmhdbcincpcgbdmbhnmgh) 点击 **「添加至 Chrome」**。
 
-**本地开发 / 未上架环境加载：**
-
-1. 打开本仓库，点击 **Code → Download ZIP**，或 `git clone` 后解压到固定目录  
-2. 打开 Chrome → `chrome://extensions/` → 开启 **开发者模式**  
-3. 点击 **「加载已解压的扩展程序」**，选择仓库里的 **`doubaoparser`** 文件夹（本地若建了 `extension` 联接亦可选它）  
-4. 确认名称为 `豆包AI生成图片与视频无感去水印`、版本 `2.7.1`  
-5. 打开 [豆包](https://www.doubao.com)，按 `Ctrl + Shift + R` 强制刷新  
-
-若曾安装其它豆包去水印类扩展，建议先禁用以免冲突。更细的回归与排错见 [docs/testing.md](./docs/testing.md)。
-
-**上架 / 打包（维护者）：**
-- Chrome扩展市场：[豆包AI生成图片与视频无感去水印](https://chromewebstore.google.com/detail/%E8%B1%86%E5%8C%85ai%E7%94%9F%E6%88%90%E5%9B%BE%E7%89%87%E4%B8%8E%E8%A7%86%E9%A2%91%E6%97%A0%E6%84%9F%E5%8E%BB%E6%B0%B4%E5%8D%B0/mopkgmfclnpcmhdbcincpcgbdmbhnmgh)
-
+![Chrome 网上应用店](docs/images/chrome-web-store.png)
 
 ### 方式二：油猴脚本 / Greasy Fork（图片 + 视频）
 
