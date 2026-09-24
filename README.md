@@ -19,7 +19,7 @@
 
 ### 方式一：Chrome 扩展（完整功能：图片 + 视频）
 
-**推荐（一键安装）：** 前往 [Chrome 网上应用店](https://chromewebstore.google.com/detail/%E8%B1%86%E5%8C%85ai%E7%94%9F%E6%88%90%E5%9B%BE%E7%89%87%E4%B8%8E%E8%A7%86%E9%A2%91%E6%97%A0%E6%84%9F%E5%8E%BB%E6%B0%B4%E5%8D%B0/mopkgmfclnpcmhdbcincpcgbdmbhnmgh) 点击 **「添加至 Chrome」**。
+**Chrome扩展市场一键安装：** 前往 [Chrome 网上应用店](https://chromewebstore.google.com/detail/%E8%B1%86%E5%8C%85ai%E7%94%9F%E6%88%90%E5%9B%BE%E7%89%87%E4%B8%8E%E8%A7%86%E9%A2%91%E6%97%A0%E6%84%9F%E5%8E%BB%E6%B0%B4%E5%8D%B0/mopkgmfclnpcmhdbcincpcgbdmbhnmgh) 点击 **「添加至 Chrome」**。
 
 **本地开发 / 未上架环境加载：**
 
@@ -32,14 +32,8 @@
 若曾安装其它豆包去水印类扩展，建议先禁用以免冲突。更细的回归与排错见 [docs/testing.md](./docs/testing.md)。
 
 **上架 / 打包（维护者）：**
-- 商店页：[豆包AI生成图片与视频无感去水印](https://chromewebstore.google.com/detail/%E8%B1%86%E5%8C%85ai%E7%94%9F%E6%88%90%E5%9B%BE%E7%89%87%E4%B8%8E%E8%A7%86%E9%A2%91%E6%97%A0%E6%84%9F%E5%8E%BB%E6%B0%B4%E5%8D%B0/mopkgmfclnpcmhdbcincpcgbdmbhnmgh)
-- 提交流程：[store/CHROME_WEB_STORE.md](./store/CHROME_WEB_STORE.md)
-- **商店说明文案（直接复制）**：[store/LISTING.md](./store/LISTING.md)
-- 打包命令：
+- Chrome扩展市场：[豆包AI生成图片与视频无感去水印](https://chromewebstore.google.com/detail/%E8%B1%86%E5%8C%85ai%E7%94%9F%E6%88%90%E5%9B%BE%E7%89%87%E4%B8%8E%E8%A7%86%E9%A2%91%E6%97%A0%E6%84%9F%E5%8E%BB%E6%B0%B4%E5%8D%B0/mopkgmfclnpcmhdbcincpcgbdmbhnmgh)
 
-```powershell
-powershell -ExecutionPolicy Bypass -File tools/pack-chrome-extension.ps1
-```
 
 ### 方式二：油猴脚本 / Greasy Fork（图片 + 视频）
 
@@ -135,7 +129,7 @@ Popup 中可按会话查看图片 / 视频，支持全选与批量下载：
 
 | 会话资源（全部） | 仅视频筛选 |
 | :---: | :---: |
-| ![Popup 会话资源](docs/images/2/6.png) | ![Popup 视频筛选](docs/images/2/7.png) |
+| ![会话资源](docs/images/2/6.png) | ![视频筛选](docs/images/2/7.png) |
 
 - 📦 **本会话汇总**：面板计数实时更新（如图片 5 / 视频 1）
 - 🗂️ **Popup 网格**：缩略图 + 分辨率 / 格式 / 时间
@@ -169,15 +163,7 @@ Popup 可按「会话标题 - Chat ID」切换，或选择 **全部会话** 汇�
 
 ### 视频原理（简要）
 
-与油猴版相同：在页面内拦截豆包会话链路响应中的 `fallback_api`，再本地解析无水印视频地址并下载。不再使用 `chrome.debugger`，页顶不会出现「正在调试此浏览器」。
-
-### 与同类方案
-
-生态中另有油猴脚本、API / Edge 等实现，侧重点不同。本仓库定位为 **Chrome MV3：图片 + 视频同一套 UI + 本地历史**。可对照：
-
-- [Qalxry/doubao-no-watermark](https://github.com/Qalxry/doubao-no-watermark)（油猴 · 图片等）
-- [ihmily/doubao-nomark](https://github.com/ihmily/doubao-nomark)（API / Edge / 油猴）
-
+在页面内拦截豆包会话链路响应中的 `fallback_api`，再本地解析无水印视频地址并下载。
 ---
 
 ## 使用方法
@@ -185,18 +171,18 @@ Popup 可按「会话标题 - Chat ID」切换，或选择 **全部会话** 汇�
 ### 图片
 
 1. 打开含生成图片的豆包会话并刷新  
-2. 确认会话内图、右侧大图为无水印；可用页内面板或 Popup 下载  
+2. 确认会话内图、右侧大图为无水印；可用页内面板下载  
 3. 豆包原生下载按钮也应尽量得到无水印原图  
 
 ### 视频
 
 1. 打开含生成视频的会话并强制刷新  
-2. Popup / 页内面板显示「已就绪」或「加载成功」  
+2. 会话页内面板显示「已就绪」或「加载成功」  
 3. 使用预览 / 下载；下载来源一般为字节相关视频域名  
 
 ### 历史与批量
 
-1. 在多个会话中捕获媒体后打开 Popup  
+1. 在多个会话中捕获媒体后打开可进行历史图片和视频管理 
 2. 按会话与类型筛选，勾选后批量下载  
 3. 需要时调整缓存上限并「立即整理」  
 
@@ -226,8 +212,6 @@ DoubaoWaterMark-Remover/
 └── userscript/             # 油猴 / Greasy Fork（与扩展分开发布）
 ```
 
-本地可将 `extension` 联接到 `doubaoparser`（可选，已 gitignore）；打包脚本会优先找 `extension`，否则用 `doubaoparser`。
-
 ---
 
 ## 权限与隐私
@@ -239,7 +223,7 @@ DoubaoWaterMark-Remover/
 | `tabs` | 会话识别 |
 | 主机权限 | 豆包 / 字节相关媒体域 |
 
-数据仅存本机 IndexedDB，不上传聊天内容到开发者服务器。
+数据仅存储在本地，不上传聊天内容到开发者服务器。
 
 ---
 
@@ -251,17 +235,8 @@ DoubaoWaterMark-Remover/
 
 ## 开发与反馈
 
-- 品牌：**十一木**  
-- 仓库：https://github.com/XiaoYu43002/DoubaoWaterMark-Remover  
+- 作者：**十一木**  
 - Popup 内可复制微信号反馈  
-- 欢迎 Issue / PR  
-
-## 特别鸣谢
-
-感谢豆包无水印相关开源生态的先行者与贡献者（实现路径不同，可对照学习）：
-
-- [Qalxry/doubao-no-watermark](https://github.com/Qalxry/doubao-no-watermark)
-- [ihmily/doubao-nomark](https://github.com/ihmily/doubao-nomark)
 
 ## 许可证
 
